@@ -41,8 +41,16 @@ class MarstekWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH) {
-            triggerRefresh(context)
+        when (intent.action) {
+            ACTION_REFRESH -> triggerRefresh(context)
+            Intent.ACTION_USER_PRESENT -> {
+                // Rate-limit: only refresh on phone unlock if at least 60 seconds have elapsed
+                val now = System.currentTimeMillis()
+                if (now - lastUnlockRefreshTimestamp > 60_000L) {
+                    lastUnlockRefreshTimestamp = now
+                    triggerRefresh(context)
+                }
+            }
         }
     }
 
@@ -92,6 +100,7 @@ class MarstekWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_REFRESH = "com.marstek.widget.ACTION_REFRESH"
+        private var lastUnlockRefreshTimestamp: Long = 0L
 
         fun updateAllWidgets(context: Context) {
             val intent = Intent(context, MarstekWidgetProvider::class.java).apply {

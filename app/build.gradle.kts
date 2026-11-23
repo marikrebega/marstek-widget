@@ -7,6 +7,18 @@ android {
     namespace = "com.marstek.widget"
     compileSdk = 34
 
+    val vCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 1
+    val vName = (project.findProperty("versionName") as? String) ?: "1.0"
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     val vCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 2
     val vName = (project.findProperty("versionName") as? String) ?: "1.1"
 

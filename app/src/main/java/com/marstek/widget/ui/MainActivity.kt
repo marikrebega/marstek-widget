@@ -98,8 +98,8 @@ class MainActivity : AppCompatActivity() {
         prefs.deviceIp = ip
         prefs.devicePort = port
 
-        // Schedule periodic background worker (15 min interval)
-        WidgetUpdateWorker.schedule(this, 15)
+        // Schedule periodic background worker (30 min interval)
+        WidgetUpdateWorker.schedule(this, 30)
 
         // Trigger immediate widget update
         MarstekWidgetProvider.updateAllWidgets(this)

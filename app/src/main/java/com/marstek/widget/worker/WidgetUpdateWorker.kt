@@ -51,7 +51,7 @@ class WidgetUpdateWorker(
     companion object {
         private const val WORK_NAME = "marstek_widget_periodic_sync"
 
-        fun schedule(context: Context, intervalMinutes: Long = 15) {
+        fun schedule(context: Context, intervalMinutes: Long = 30) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
