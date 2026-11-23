@@ -19,18 +19,6 @@ android {
         }
     }
 
-    val vCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 2
-    val vName = (project.findProperty("versionName") as? String) ?: "1.1"
-
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-
     defaultConfig {
         applicationId = "com.marstek.widget"
         minSdk = 26
