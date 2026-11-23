@@ -7,15 +7,30 @@ android {
     namespace = "com.marstek.widget"
     compileSdk = 34
 
+    val vCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 2
+    val vName = (project.findProperty("versionName") as? String) ?: "1.1"
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.marstek.widget"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = vCode
+        versionName = vName
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

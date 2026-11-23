@@ -23,11 +23,11 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Build Debug APK with Auto-Incremented Version
+        run: gradle assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }} --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: marstek-widget-apk
+          name: marstek-widget-v${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
