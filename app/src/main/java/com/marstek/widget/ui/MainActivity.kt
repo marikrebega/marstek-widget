@@ -10,7 +10,6 @@ import com.marstek.widget.data.PreferencesManager
 import com.marstek.widget.databinding.ActivityMainBinding
 import com.marstek.widget.network.MarstekUdpClient
 import com.marstek.widget.receiver.MarstekWidgetProvider
-import com.marstek.widget.worker.WidgetUpdateWorker
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -97,9 +96,6 @@ class MainActivity : AppCompatActivity() {
 
         prefs.deviceIp = ip
         prefs.devicePort = port
-
-        // Schedule periodic background worker (30 min interval)
-        WidgetUpdateWorker.schedule(this, 30)
 
         // Trigger immediate widget update
         MarstekWidgetProvider.updateAllWidgets(this)
