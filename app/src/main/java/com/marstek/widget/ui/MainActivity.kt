@@ -26,7 +26,8 @@ class MainActivity : AppCompatActivity() {
         prefs = PreferencesManager(this)
 
         // Prepopulate saved values
-        binding.etDeviceIp.setText(prefs.deviceIp)
+        val currentIp = if (prefs.deviceIp.isNotBlank()) prefs.deviceIp else "192.168.0.190"
+        binding.etDeviceIp.setText(currentIp)
         binding.etDevicePort.setText(prefs.devicePort.toString())
 
         binding.btnTestConnection.setOnClickListener {

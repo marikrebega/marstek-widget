@@ -9,7 +9,7 @@ class PreferencesManager(context: Context) {
         context.getSharedPreferences("marstek_widget_prefs", Context.MODE_PRIVATE)
 
     var deviceIp: String
-        get() = prefs.getString(KEY_DEVICE_IP, "") ?: ""
+        get() = prefs.getString(KEY_DEVICE_IP, "192.168.0.190") ?: "192.168.0.190"
         set(value) = prefs.edit().putString(KEY_DEVICE_IP, value.trim()).apply()
 
     var devicePort: Int
