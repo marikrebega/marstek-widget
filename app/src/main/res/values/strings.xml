@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Marstek Venus Widget</string>
+    <string name="widget_description">Real-time status widget for Marstek Venus energy storage systems via local UDP API.</string>
+    <string name="title_settings">Marstek Venus D Connection</string>
+    <string name="hint_ip">Marstek Device IP (e.g. 192.168.1.150)</string>
+    <string name="hint_port">Local API Port (Default: 30000)</string>
+    <string name="btn_test">Test Local Connection</string>
+    <string name="btn_save">Save and Update Widget</string>
+    <string name="refresh_interval">Update Interval</string>
+    <string name="status_connecting">Connecting...</string>
+    <string name="status_error">Connection failed</string>
+    <string name="solar_label">Solar</string>
+    <string name="grid_label">Grid</string>
+    <string name="battery_label">Battery</string>
+</resources>
