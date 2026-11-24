@@ -30,6 +30,9 @@ export interface MarstekStatusDto {
   totalPvEnergy: number;
   totalGridOutputEnergy: number;
   totalGridInputEnergy: number;
+  totalLoadEnergy: number;
+  deviceName?: string;
+  workMode?: string;
   timestamp: number;
 }
 
@@ -59,6 +62,10 @@ function toInt(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function parseMarstekJson(jsonStr: string): MarstekStatusDto {
   const root = JSON.parse(jsonStr) as RawMarstekPayload;
 
@@ -82,6 +89,8 @@ function parseMarstekJson(jsonStr: string): MarstekStatusDto {
     result = root.last_success_payload.result;
   }
 
+  const deviceName = typeof root.src === 'string' && root.src.trim() ? root.src.trim() : undefined;
+
   return {
     batSoc: toInt(result.bat_soc, 0),
     batCap: toInt(result.bat_cap, 0),
@@ -91,6 +100,8 @@ function parseMarstekJson(jsonStr: string): MarstekStatusDto {
     totalPvEnergy: toInt(result.total_pv_energy, 0),
     totalGridOutputEnergy: toInt(result.total_grid_output_energy, 0),
     totalGridInputEnergy: toInt(result.total_grid_input_energy, 0),
+    totalLoadEnergy: toInt(result.total_load_energy, 0),
+    deviceName,
     timestamp: Date.now(),
   };
 }
@@ -184,42 +195,51 @@ async function probeDevice(ipAddress: string, port: number): Promise<string | nu
 async function queryOptionalDetails(
   ipAddress: string,
   port: number
-): Promise<{ extraLogs: ExtraLog[]; ratedCapacity: number }> {
+): Promise<{ extraLogs: ExtraLog[]; ratedCapacity: number; workMode?: string }> {
   const extraLogs: ExtraLog[] = [];
   let ratedCapacity = 0;
+  let workMode: string | undefined;
 
-  const [batRes, modeRes] = await Promise.allSettled([
-    sendUdpCommand(
+  // Query sequentially with short pause so Venus D UDP stack does not drop packets
+  try {
+    await sleepMs(120);
+    const batRaw = await sendUdpCommand(
       ipAddress,
       port,
       '{"id": 2, "method": "Bat.GetStatus", "params": {"id": 0}}',
-      1200
-    ),
-    sendUdpCommand(
-      ipAddress,
-      port,
-      '{"id": 3, "method": "ES.GetMode", "params": {"id": 0}}',
-      1200
-    ),
-  ]);
-
-  if (batRes.status === 'fulfilled' && batRes.value) {
-    extraLogs.push({ method: 'Bat.GetStatus', rawResponse: batRes.value });
-    try {
-      const parsed = JSON.parse(batRes.value) as RawMarstekPayload;
+      1500
+    );
+    if (batRaw) {
+      extraLogs.push({ method: 'Bat.GetStatus', rawResponse: batRaw });
+      const parsed = JSON.parse(batRaw) as RawMarstekPayload;
       if (parsed.result && typeof parsed.result === 'object') {
         ratedCapacity = toInt(parsed.result.rated_capacity, 0);
       }
-    } catch {
-      // Ignore parse failure on optional telemetry
     }
+  } catch {
+    // Optional telemetry
   }
 
-  if (modeRes.status === 'fulfilled' && modeRes.value) {
-    extraLogs.push({ method: 'ES.GetMode', rawResponse: modeRes.value });
+  try {
+    await sleepMs(120);
+    const modeRaw = await sendUdpCommand(
+      ipAddress,
+      port,
+      '{"id": 3, "method": "ES.GetMode", "params": {"id": 0}}',
+      1500
+    );
+    if (modeRaw) {
+      extraLogs.push({ method: 'ES.GetMode', rawResponse: modeRaw });
+      const parsed = JSON.parse(modeRaw) as RawMarstekPayload;
+      if (parsed.result && typeof parsed.result === 'object' && typeof parsed.result.mode === 'string') {
+        workMode = parsed.result.mode;
+      }
+    }
+  } catch {
+    // Optional telemetry
   }
 
-  return { extraLogs, ratedCapacity };
+  return { extraLogs, ratedCapacity, workMode };
 }
 
 async function queryMarstekStatus(ipAddress: string, port: number): Promise<QueryOutcome> {
@@ -238,9 +258,12 @@ async function queryMarstekStatus(ipAddress: string, port: number): Promise<Quer
       );
       lastRawResponse = responseJson;
       const status = parseMarstekJson(responseJson);
-      const { extraLogs, ratedCapacity } = await queryOptionalDetails(ipAddress, port);
+      const { extraLogs, ratedCapacity, workMode } = await queryOptionalDetails(ipAddress, port);
       if (status.batCap <= 0 && ratedCapacity > 0) {
         status.batCap = ratedCapacity;
+      }
+      if (workMode) {
+        status.workMode = workMode;
       }
       return {
         status,

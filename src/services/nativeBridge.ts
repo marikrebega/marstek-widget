@@ -6,6 +6,15 @@ interface MarstekNativeInterface {
     group: string,
     forceRefresh: boolean
   ): void;
+  saveConfig?: (
+    ip: string,
+    port: number,
+    dischargeLimit: number,
+    chargeLimit: number,
+    providerId: string,
+    group: string
+  ) => void;
+  loadConfig?: () => string;
 }
 
 interface PendingCallback {
@@ -39,6 +48,26 @@ function ensureCallbackRegistered(): void {
 
 export function hasNativeAndroidBridge(): boolean {
   return typeof window !== 'undefined' && Boolean(window.MarstekNative);
+}
+
+export function syncConfigToNativeAndroid(params: {
+  ip: string;
+  port: number;
+  dischargeLimit: number;
+  chargeLimit: number;
+  providerId: string;
+  group: string;
+}): void {
+  if (typeof window !== 'undefined' && window.MarstekNative?.saveConfig) {
+    window.MarstekNative.saveConfig(
+      params.ip,
+      params.port,
+      params.dischargeLimit,
+      params.chargeLimit,
+      params.providerId,
+      params.group
+    );
+  }
 }
 
 export function callNativeQueryStatus(ip: string, port: number): Promise<string> {

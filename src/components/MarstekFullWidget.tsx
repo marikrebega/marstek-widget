@@ -3,6 +3,7 @@ import {
   evaluateOutageSchedule,
   formatPowerUk,
   getModeVisuals,
+  getNetBatteryPower,
   type BatteryLimits,
   type BatteryMode,
   type OutageSlot,
@@ -11,7 +12,9 @@ import {
 interface MarstekFullWidgetProps {
   soc: number;
   batCap: number;
+  pvPower: number;
   onGridPower: number;
+  offGridPower: number;
   limits: BatteryLimits;
   outageSlots: OutageSlot[];
   tomorrowOutageSlots?: OutageSlot[];
@@ -79,7 +82,9 @@ function ModeIcon({ mode, color }: { mode: BatteryMode; color: string }) {
 export function MarstekFullWidget({
   soc,
   batCap,
+  pvPower,
   onGridPower,
+  offGridPower,
   limits,
   outageSlots,
   tomorrowOutageSlots = [],
@@ -91,7 +96,8 @@ export function MarstekFullWidget({
 }: MarstekFullWidgetProps) {
   const hasSoc = soc >= 0;
   const clampedSoc = hasSoc ? Math.max(0, Math.min(100, soc)) : 0;
-  const durations = computeEnergyDurations(clampedSoc, batCap, onGridPower, limits);
+  const netPower = getNetBatteryPower(pvPower, onGridPower, offGridPower);
+  const durations = computeEnergyDurations(clampedSoc, batCap, netPower, limits);
   const visuals = getModeVisuals(durations.mode);
   const outage = evaluateOutageSchedule(outageSlots, nowMinutes, tomorrowOutageSlots);
 
@@ -185,7 +191,7 @@ export function MarstekFullWidget({
             {hasSoc ? `${clampedSoc}%` : '--%'}
           </div>
           <div className="mt-1.5 text-[13px] text-[#A8B0B8] tabular-nums">
-            {hasSoc ? formatPowerUk(onGridPower) : '-- Вт'}
+            {hasSoc ? formatPowerUk(netPower) : '-- Вт'}
           </div>
         </div>
       </div>

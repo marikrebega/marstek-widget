@@ -114,9 +114,7 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
                   <span className="text-[#A8B0B8]">·</span>
                   <span className="text-[#5AB0FF] truncate">{entry.method}</span>
                   <span className="text-[#A8B0B8]">·</span>
-                  <span className="text-[#A8B0B8] truncate">
-                    {entry.source === 'demo' ? 'Демо' : entry.target}
-                  </span>
+                  <span className="text-[#A8B0B8] truncate">{entry.target}</span>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">

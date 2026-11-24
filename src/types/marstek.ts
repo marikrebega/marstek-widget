@@ -7,6 +7,9 @@ export interface MarstekStatus {
   totalPvEnergy: number;
   totalGridOutputEnergy: number;
   totalGridInputEnergy: number;
+  totalLoadEnergy?: number;
+  deviceName?: string;
+  workMode?: string;
   timestamp: number;
 }
 
@@ -15,7 +18,6 @@ export interface MarstekLogEntry {
   timestamp: string;
   target: string;
   method: string;
-  source: 'udp' | 'demo';
   ok: boolean;
   durationMs: number;
   rawPayload: string;
@@ -30,7 +32,6 @@ export interface OutageSlot {
 }
 
 export interface OutageConfig {
-  mode: 'api' | 'manual';
   providerId: string;
   group: string;
 }
@@ -58,14 +59,7 @@ export interface BatteryLimits {
   chargeLimit: number;    // % e.g. 90
 }
 
-export const DEFAULT_OUTAGE_SLOTS: OutageSlot[] = [
-  { id: 'slot-1', start: '02:00', end: '04:30' },
-  { id: 'slot-2', start: '10:00', end: '12:30' },
-  { id: 'slot-3', start: '18:00', end: '20:30' },
-];
-
 export const DEFAULT_OUTAGE_CONFIG: OutageConfig = {
-  mode: 'api',
   providerId: 'prykarpattya-oe',
   group: '1.1',
 };
@@ -94,9 +88,22 @@ export function getKyivMinutes(date: Date = new Date()): number {
   return date.getHours() * 60 + date.getMinutes();
 }
 
-export function getBatteryMode(onGridPower: number): BatteryMode {
-  if (onGridPower > 50) return 'charging';
-  if (onGridPower < -50) return 'discharging';
+export function getNetBatteryPower(
+  pvPower: number,
+  onGridPower: number,
+  offGridPower: number = 0
+): number {
+  // Marstek ES.GetStatus convention:
+  // ongrid_power < 0 = importing from grid (charging)
+  // ongrid_power > 0 = exporting to grid/load (discharging)
+  // offgrid_power > 0 = supplying EPS load (discharging)
+  // pv_power > 0 = solar input (charging)
+  return pvPower - onGridPower - offGridPower;
+}
+
+export function getBatteryMode(netBatteryPower: number): BatteryMode {
+  if (netBatteryPower > 25) return 'charging';
+  if (netBatteryPower < -25) return 'discharging';
   return 'idle';
 }
 
@@ -114,15 +121,15 @@ export function getModeVisuals(mode: BatteryMode): {
   }
 }
 
-export function formatPowerUk(watts: number): string {
-  const absW = Math.abs(watts);
-  const sign = watts > 50 ? '+' : watts < -50 ? '−' : '';
+export function formatPowerUk(netBatteryPower: number): string {
+  const absW = Math.abs(netBatteryPower);
+  if (absW <= 25) {
+    return '0 Вт';
+  }
+  const sign = netBatteryPower > 0 ? '+' : '−';
   if (absW >= 1000) {
     const kw = (absW / 1000).toFixed(1).replace('.', ',');
     return `${sign}${kw} кВт`;
-  }
-  if (Math.abs(watts) <= 50 && watts === 0) {
-    return '0 Вт';
   }
   return `${sign}${absW} Вт`;
 }
@@ -138,7 +145,7 @@ export function formatDurationUk(totalMinutes: number): string {
 export function computeEnergyDurations(
   soc: number,
   batCapWh: number,
-  onGridPower: number,
+  netBatteryPower: number,
   limits: BatteryLimits
 ): {
   mode: BatteryMode;
@@ -149,12 +156,12 @@ export function computeEnergyDurations(
   rightLabel: string;
   cardTitle: string;
 } {
-  const mode = getBatteryMode(onGridPower);
-  const capacityWh = batCapWh > 0 ? batCapWh : 5120;
+  const mode = getBatteryMode(netBatteryPower);
+  const capacityWh = batCapWh > 0 ? batCapWh : 2560;
   const clampedSoc = Math.max(0, Math.min(100, soc));
 
   if (mode === 'charging') {
-    const powerW = Math.max(1, onGridPower);
+    const powerW = Math.max(1, Math.abs(netBatteryPower));
     const toLimitPct = Math.max(0, limits.chargeLimit - clampedSoc);
     const toFullPct = Math.max(0, 100 - clampedSoc);
 
@@ -178,7 +185,7 @@ export function computeEnergyDurations(
   }
 
   if (mode === 'discharging') {
-    const powerW = Math.max(1, Math.abs(onGridPower));
+    const powerW = Math.max(1, Math.abs(netBatteryPower));
     const toLimitPct = Math.max(0, clampedSoc - limits.dischargeLimit);
     const toZeroPct = clampedSoc;
 

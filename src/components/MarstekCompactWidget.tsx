@@ -2,6 +2,7 @@ import {
   computeEnergyDurations,
   evaluateOutageSchedule,
   getModeVisuals,
+  getNetBatteryPower,
   type BatteryLimits,
   type BatteryMode,
   type OutageSlot,
@@ -10,7 +11,9 @@ import {
 interface MarstekCompactWidgetProps {
   soc: number;
   batCap: number;
+  pvPower: number;
   onGridPower: number;
+  offGridPower: number;
   limits: BatteryLimits;
   outageSlots: OutageSlot[];
   tomorrowOutageSlots?: OutageSlot[];
@@ -75,7 +78,9 @@ function CompactModeIcon({ mode, color }: { mode: BatteryMode; color: string }) 
 export function MarstekCompactWidget({
   soc,
   batCap,
+  pvPower,
   onGridPower,
+  offGridPower,
   limits,
   outageSlots,
   tomorrowOutageSlots = [],
@@ -84,7 +89,8 @@ export function MarstekCompactWidget({
 }: MarstekCompactWidgetProps) {
   const hasSoc = soc >= 0;
   const clampedSoc = hasSoc ? Math.max(0, Math.min(100, soc)) : 0;
-  const durations = computeEnergyDurations(clampedSoc, batCap, onGridPower, limits);
+  const netPower = getNetBatteryPower(pvPower, onGridPower, offGridPower);
+  const durations = computeEnergyDurations(clampedSoc, batCap, netPower, limits);
   const visuals = getModeVisuals(durations.mode);
   const outage = evaluateOutageSchedule(outageSlots, nowMinutes, tomorrowOutageSlots);
   const dashFilled = (clampedSoc / 100) * CIRCUMFERENCE;

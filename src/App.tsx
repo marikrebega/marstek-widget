@@ -2,22 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConnectionSettings, type TestState } from './components/ConnectionSettings';
 import { MarstekCompactWidget } from './components/MarstekCompactWidget';
 import { MarstekFullWidget } from './components/MarstekFullWidget';
-import {
-  buildSimulatedStatus,
-  fetchMarstekStatus,
-  formatRawMarstekJson,
-  MarstekFetchError,
-  type SimulationPreset,
-} from './services/marstekApi';
+import { fetchMarstekStatus, MarstekFetchError } from './services/marstekApi';
+import { syncConfigToNativeAndroid } from './services/nativeBridge';
 import { fetchOutageProviders, fetchOutageSchedule } from './services/outageApi';
 import {
   loadPreferences,
-  saveDemoMode,
+  saveCachedOutages,
   saveDeviceConfig,
   saveLatestStatus,
   saveLimits,
   saveOutageConfig,
-  saveOutageSlots,
   saveWidgetSize,
   type WidgetSizeMode,
 } from './services/preferences';
@@ -55,7 +49,11 @@ export function App() {
 
   const [soc, setSoc] = useState(initialPrefs.current.lastCachedSoc);
   const [batCap, setBatCap] = useState(initialPrefs.current.lastCachedCap);
+  const [pvPower, setPvPower] = useState(initialPrefs.current.lastCachedPv);
   const [onGridPower, setOnGridPower] = useState(initialPrefs.current.lastCachedGrid);
+  const [offGridPower, setOffGridPower] = useState(
+    initialPrefs.current.lastFullStatus?.offGridPower ?? 0
+  );
 
   const [limits, setLimits] = useState<BatteryLimits>(initialPrefs.current.limits);
   const [outageConfig, setOutageConfig] = useState<OutageConfig>(
@@ -66,11 +64,12 @@ export function App() {
   const [availableGroups, setAvailableGroups] = useState<string[]>([
     initialPrefs.current.outageConfig.group,
   ]);
-  const [manualOutageSlots, setManualOutageSlots] = useState<OutageSlot[]>(
-    initialPrefs.current.outageSlots
+  const [apiOutageSlots, setApiOutageSlots] = useState<OutageSlot[]>(
+    initialPrefs.current.cachedOutageToday
   );
-  const [apiOutageSlots, setApiOutageSlots] = useState<OutageSlot[]>([]);
-  const [tomorrowApiOutageSlots, setTomorrowApiOutageSlots] = useState<OutageSlot[]>([]);
+  const [tomorrowApiOutageSlots, setTomorrowApiOutageSlots] = useState<OutageSlot[]>(
+    initialPrefs.current.cachedOutageTomorrow
+  );
   const [outageLoading, setOutageLoading] = useState(false);
   const [outageError, setOutageError] = useState<string | null>(null);
   const [outageUpdatedAt, setOutageUpdatedAt] = useState<string | null>(null);
@@ -78,9 +77,6 @@ export function App() {
   const [widgetSize, setWidgetSize] = useState<WidgetSizeMode>(
     initialPrefs.current.widgetSize
   );
-
-  const [demoMode, setDemoMode] = useState(initialPrefs.current.demoMode);
-  const [activePreset, setActivePreset] = useState<SimulationPreset>('charging');
   const [nowMinutes, setNowMinutes] = useState(() => getKyivMinutes());
 
   const [isUpdating, setIsUpdating] = useState(false);
@@ -89,25 +85,7 @@ export function App() {
   const [ipError, setIpError] = useState<string | null>(null);
   const [testState, setTestState] = useState<TestState>({ kind: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const [logs, setLogs] = useState<MarstekLogEntry[]>(() => {
-    if (initialPrefs.current.demoMode) {
-      const sample = buildSimulatedStatus('charging');
-      return [
-        {
-          id: `log-${Date.now()}`,
-          timestamp: formatTimeHHMMSS(new Date()),
-          target: `${initialPrefs.current.deviceIp}:${initialPrefs.current.devicePort}`,
-          method: 'ES.GetStatus',
-          source: 'demo',
-          ok: true,
-          durationMs: 12,
-          rawPayload: formatRawMarstekJson(sample),
-        },
-      ];
-    }
-    return [];
-  });
+  const [logs, setLogs] = useState<MarstekLogEntry[]>([]);
 
   const ipInputRef = useRef<HTMLInputElement | null>(null);
   const lastVisibilityRefreshRef = useRef<number>(0);
@@ -142,9 +120,9 @@ export function App() {
         setApiOutageSlots(data.slots);
         setTomorrowApiOutageSlots(data.tomorrowSlots);
         setOutageUpdatedAt(data.updatedOn);
+        saveCachedOutages(data.slots, data.tomorrowSlots);
         if (data.selectedGroup && data.selectedGroup !== group) {
           const updatedConfig: OutageConfig = {
-            mode: 'api',
             providerId: data.providerId,
             group: data.selectedGroup,
           };
@@ -161,7 +139,25 @@ export function App() {
     []
   );
 
-  // Load outage providers once
+  // Sync config to native Android widget bridge whenever settings change
+  useEffect(() => {
+    syncConfigToNativeAndroid({
+      ip: savedIp,
+      port: savedPort,
+      dischargeLimit: limits.dischargeLimit,
+      chargeLimit: limits.chargeLimit,
+      providerId: outageConfig.providerId,
+      group: outageConfig.group,
+    });
+  }, [
+    savedIp,
+    savedPort,
+    limits.dischargeLimit,
+    limits.chargeLimit,
+    outageConfig.providerId,
+    outageConfig.group,
+  ]);
+
   useEffect(() => {
     void fetchOutageProviders()
       .then((list) => setOutageProviders(list))
@@ -170,41 +166,31 @@ export function App() {
       });
   }, []);
 
-  // Fetch real outage schedule when in API mode or when provider/group changes
   useEffect(() => {
-    if (outageConfig.mode === 'api') {
-      void loadOutageSchedule(outageConfig.providerId, outageConfig.group, false);
-    }
-  }, [outageConfig.mode, outageConfig.providerId, outageConfig.group, loadOutageSchedule]);
+    void loadOutageSchedule(outageConfig.providerId, outageConfig.group, false);
+  }, [outageConfig.providerId, outageConfig.group, loadOutageSchedule]);
 
   const refreshWidget = useCallback(
-    async (
-      targetIp: string,
-      targetPort: number,
-      useDemo: boolean,
-      preset?: SimulationPreset
-    ) => {
+    async (targetIp: string, targetPort: number) => {
       if (!targetIp.trim()) return;
 
       setIsUpdating(true);
       setIsError(false);
 
       try {
-        const outcome = await fetchMarstekStatus(targetIp, targetPort, {
-          simulate: useDemo,
-          preset,
-        });
+        const outcome = await fetchMarstekStatus(targetIp, targetPort);
         const formatted = formatTimeHHMM(new Date(outcome.status.timestamp));
         saveLatestStatus(outcome.status, formatted);
         setSoc(outcome.status.batSoc);
         setBatCap(outcome.status.batCap);
+        setPvPower(outcome.status.pvPower);
         setOnGridPower(outcome.status.onGridPower);
+        setOffGridPower(outcome.status.offGridPower);
         setIsError(false);
 
         appendLog({
           target: `${targetIp}:${targetPort}`,
           method: outcome.method,
-          source: useDemo ? 'demo' : 'udp',
           ok: true,
           durationMs: outcome.durationMs,
           rawPayload: outcome.rawResponse,
@@ -214,7 +200,6 @@ export function App() {
             appendLog({
               target: `${targetIp}:${targetPort}`,
               method: extra.method,
-              source: useDemo ? 'demo' : 'udp',
               ok: true,
               durationMs: outcome.durationMs,
               rawPayload: extra.rawResponse,
@@ -235,7 +220,6 @@ export function App() {
         appendLog({
           target: `${targetIp}:${targetPort}`,
           method,
-          source: useDemo ? 'demo' : 'udp',
           ok: false,
           durationMs,
           rawPayload,
@@ -247,12 +231,15 @@ export function App() {
     [appendLog]
   );
 
+  // Initial live fetch on app launch + periodic 15-minute updates
+  useEffect(() => {
+    void refreshWidget(savedIp, savedPort);
+  }, [savedIp, savedPort, refreshWidget]);
+
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      void refreshWidget(savedIp, savedPort, demoMode, activePreset);
-      if (outageConfig.mode === 'api') {
-        void loadOutageSchedule(outageConfig.providerId, outageConfig.group, false);
-      }
+      void refreshWidget(savedIp, savedPort);
+      void loadOutageSchedule(outageConfig.providerId, outageConfig.group, false);
     }, AUTO_REFRESH_INTERVAL_MS);
 
     const clockId = window.setInterval(() => {
@@ -265,7 +252,7 @@ export function App() {
         const now = Date.now();
         if (now - lastVisibilityRefreshRef.current > VISIBILITY_RATE_LIMIT_MS) {
           lastVisibilityRefreshRef.current = now;
-          void refreshWidget(savedIp, savedPort, demoMode, activePreset);
+          void refreshWidget(savedIp, savedPort);
         }
       }
     };
@@ -279,9 +266,6 @@ export function App() {
   }, [
     savedIp,
     savedPort,
-    demoMode,
-    activePreset,
-    outageConfig.mode,
     outageConfig.providerId,
     outageConfig.group,
     refreshWidget,
@@ -305,15 +289,11 @@ export function App() {
     setTestState({ kind: 'testing', ip: trimmedIp, port: parsedPort });
 
     try {
-      const outcome = await fetchMarstekStatus(trimmedIp, parsedPort, {
-        simulate: demoMode,
-        preset: activePreset,
-      });
+      const outcome = await fetchMarstekStatus(trimmedIp, parsedPort);
       setTestState({ kind: 'success', status: outcome.status });
       appendLog({
         target: `${trimmedIp}:${parsedPort}`,
         method: outcome.method,
-        source: demoMode ? 'demo' : 'udp',
         ok: true,
         durationMs: outcome.durationMs,
         rawPayload: outcome.rawResponse,
@@ -323,7 +303,6 @@ export function App() {
           appendLog({
             target: `${trimmedIp}:${parsedPort}`,
             method: extra.method,
-            source: demoMode ? 'demo' : 'udp',
             ok: true,
             durationMs: outcome.durationMs,
             rawPayload: extra.rawResponse,
@@ -336,7 +315,6 @@ export function App() {
       appendLog({
         target: `${trimmedIp}:${parsedPort}`,
         method: err instanceof MarstekFetchError ? err.method : 'ES.GetStatus',
-        source: demoMode ? 'demo' : 'udp',
         ok: false,
         durationMs: err instanceof MarstekFetchError ? err.durationMs : 0,
         rawPayload:
@@ -362,58 +340,17 @@ export function App() {
     setPortInput(String(parsedPort));
     saveDeviceConfig(trimmedIp, parsedPort);
 
-    showToast('Налаштування збережено! Оновлення віджета...');
-    void refreshWidget(trimmedIp, parsedPort, demoMode, activePreset);
-  };
-
-  const handleToggleDemoMode = (enabled: boolean) => {
-    setDemoMode(enabled);
-    saveDemoMode(enabled);
-    if (enabled) {
-      const sample = buildSimulatedStatus(activePreset);
-      const formatted = formatTimeHHMM(new Date(sample.timestamp));
-      saveLatestStatus(sample, formatted);
-      setSoc(sample.batSoc);
-      setBatCap(sample.batCap);
-      setOnGridPower(sample.onGridPower);
-      setIsError(false);
-      setTestState({ kind: 'success', status: sample });
-      appendLog({
-        target: `${savedIp}:${savedPort}`,
-        method: 'ES.GetStatus',
-        source: 'demo',
-        ok: true,
-        durationMs: 12,
-        rawPayload: formatRawMarstekJson(sample),
-      });
-      showToast('Увімкнено демо-телеметрію');
-    } else {
-      setTestState({ kind: 'idle' });
-      showToast('Перемкнуто на локальний UDP');
-    }
-  };
-
-  const handleApplyPreset = (preset: SimulationPreset) => {
-    setActivePreset(preset);
-    if (!demoMode) {
-      setDemoMode(true);
-      saveDemoMode(true);
-    }
-    const sample = buildSimulatedStatus(preset);
-    const formatted = formatTimeHHMM(new Date(sample.timestamp));
-    saveLatestStatus(sample, formatted);
-    setSoc(sample.batSoc);
-    setBatCap(sample.batCap);
-    setOnGridPower(sample.onGridPower);
-    setIsError(false);
-    appendLog({
-      target: `${savedIp}:${savedPort}`,
-      method: 'ES.GetStatus',
-      source: 'demo',
-      ok: true,
-      durationMs: 8,
-      rawPayload: formatRawMarstekJson(sample),
+    syncConfigToNativeAndroid({
+      ip: trimmedIp,
+      port: parsedPort,
+      dischargeLimit: limits.dischargeLimit,
+      chargeLimit: limits.chargeLimit,
+      providerId: outageConfig.providerId,
+      group: outageConfig.group,
     });
+
+    showToast('Налаштування збережено! Оновлення віджета...');
+    void refreshWidget(trimmedIp, parsedPort);
   };
 
   const handleLimitsChange = (nextLimits: BatteryLimits) => {
@@ -426,20 +363,10 @@ export function App() {
     saveOutageConfig(nextConfig);
   };
 
-  const handleManualOutageSlotsChange = (nextSlots: OutageSlot[]) => {
-    setManualOutageSlots(nextSlots);
-    saveOutageSlots(nextSlots);
-  };
-
   const handleWidgetSizeChange = (size: WidgetSizeMode) => {
     setWidgetSize(size);
     saveWidgetSize(size);
   };
-
-  const effectiveOutageSlots =
-    outageConfig.mode === 'api' ? apiOutageSlots : manualOutageSlots;
-  const effectiveTomorrowSlots =
-    outageConfig.mode === 'api' ? tomorrowApiOutageSlots : [];
 
   return (
     <div className="min-h-screen bg-[#0B0D10] text-[#F2F4F5] flex flex-col">
@@ -476,7 +403,7 @@ export function App() {
 
           <button
             type="button"
-            onClick={() => void refreshWidget(savedIp, savedPort, demoMode, activePreset)}
+            onClick={() => void refreshWidget(savedIp, savedPort)}
             disabled={isUpdating}
             className="px-4 py-2 rounded-lg bg-[#3DDC84] hover:bg-[#4EE592] disabled:opacity-60 text-xs font-semibold text-[#101316] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC84]"
           >
@@ -488,7 +415,7 @@ export function App() {
       {/* Main Content */}
       <main id="top" className="flex-1 max-w-5xl w-full mx-auto px-5 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[410px_1fr] gap-8 items-start">
-          {/* Left Column: Widget Preview + Controls */}
+          {/* Left Column: Live Widget Preview */}
           <section id="widget-preview" className="lg:sticky lg:top-8 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div className="inline-flex rounded-lg bg-[#1B2025] p-0.5 border border-[#2A2F35]">
@@ -527,104 +454,31 @@ export function App() {
                 <MarstekFullWidget
                   soc={soc}
                   batCap={batCap}
+                  pvPower={pvPower}
                   onGridPower={onGridPower}
+                  offGridPower={offGridPower}
                   limits={limits}
-                  outageSlots={effectiveOutageSlots}
-                  tomorrowOutageSlots={effectiveTomorrowSlots}
-                  outageGroupLabel={
-                    outageConfig.mode === 'api' ? outageConfig.group : undefined
-                  }
+                  outageSlots={apiOutageSlots}
+                  tomorrowOutageSlots={tomorrowApiOutageSlots}
+                  outageGroupLabel={outageConfig.group}
                   nowMinutes={nowMinutes}
                   isUpdating={isUpdating}
                   isError={isError}
-                  onRefresh={() =>
-                    void refreshWidget(savedIp, savedPort, demoMode, activePreset)
-                  }
+                  onRefresh={() => void refreshWidget(savedIp, savedPort)}
                 />
               ) : (
                 <MarstekCompactWidget
                   soc={soc}
                   batCap={batCap}
+                  pvPower={pvPower}
                   onGridPower={onGridPower}
+                  offGridPower={offGridPower}
                   limits={limits}
-                  outageSlots={effectiveOutageSlots}
-                  tomorrowOutageSlots={effectiveTomorrowSlots}
+                  outageSlots={apiOutageSlots}
+                  tomorrowOutageSlots={tomorrowApiOutageSlots}
                   nowMinutes={nowMinutes}
-                  onRefresh={() =>
-                    void refreshWidget(savedIp, savedPort, demoMode, activePreset)
-                  }
+                  onRefresh={() => void refreshWidget(savedIp, savedPort)}
                 />
-              )}
-            </div>
-
-            {/* Source & State Switcher */}
-            <div className="rounded-[20px] bg-[#1B2025] border border-[#2A2F35] p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold text-[#F2F4F5]">
-                    Джерело даних Marstek
-                  </div>
-                  <div className="text-[11px] text-[#A8B0B8]">
-                    {demoMode
-                      ? 'Демо-режим (симуляція станів батареї)'
-                      : 'Локальний UDP ES.GetStatus'}
-                  </div>
-                </div>
-
-                <div className="inline-flex rounded-lg bg-[#101316] p-0.5 border border-[#2A2F35] shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleDemoMode(false)}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                      !demoMode
-                        ? 'bg-[#5AB0FF] text-[#101316]'
-                        : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
-                    }`}
-                  >
-                    Live UDP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleDemoMode(true)}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                      demoMode
-                        ? 'bg-[#3DDC84] text-[#101316]'
-                        : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
-                    }`}
-                  >
-                    Демо
-                  </button>
-                </div>
-              </div>
-
-              {demoMode && (
-                <div className="pt-2 border-t border-[#2A2F35]">
-                  <div className="text-[11px] text-[#A8B0B8] mb-2">
-                    Стани віджета:
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(
-                      [
-                        { id: 'charging', label: 'Заряджається' },
-                        { id: 'discharging', label: 'Розряджається' },
-                        { id: 'idle', label: 'Очікування' },
-                      ] as const
-                    ).map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => handleApplyPreset(preset.id)}
-                        className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap truncate ${
-                          activePreset === preset.id
-                            ? 'bg-[#2A2F35] text-[#F2F4F5] border border-[#3E4650]'
-                            : 'bg-[#101316] hover:bg-[#23282E] text-[#A8B0B8]'
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               )}
             </div>
           </section>
@@ -636,12 +490,11 @@ export function App() {
               port={portInput}
               ipError={ipError}
               testState={testState}
-              demoMode={demoMode}
               limits={limits}
               outageConfig={outageConfig}
               outageProviders={outageProviders}
               availableGroups={availableGroups}
-              outageSlots={effectiveOutageSlots}
+              outageSlots={apiOutageSlots}
               outageLoading={outageLoading}
               outageError={outageError}
               outageUpdatedAt={outageUpdatedAt}
@@ -661,11 +514,9 @@ export function App() {
                   true
                 )
               }
-              onOutageSlotsChange={handleManualOutageSlotsChange}
               onClearLogs={() => setLogs([])}
               onTestConnection={() => void handleTestConnection()}
               onSaveSettings={handleSaveSettings}
-              onEnableDemoAndTest={() => handleToggleDemoMode(true)}
             />
           </section>
         </div>

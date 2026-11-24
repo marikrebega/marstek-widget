@@ -1,7 +1,6 @@
 import {
   DEFAULT_LIMITS,
   DEFAULT_OUTAGE_CONFIG,
-  DEFAULT_OUTAGE_SLOTS,
   type BatteryLimits,
   type MarstekStatus,
   type OutageConfig,
@@ -17,10 +16,10 @@ const STORAGE_KEYS = {
   LAST_GRID: 'marstek_pref_last_grid',
   LAST_UPDATE_TIME: 'marstek_pref_last_update_time',
   LAST_FULL_STATUS: 'marstek_pref_last_full_status',
-  DEMO_MODE: 'marstek_pref_demo_mode',
   LIMITS: 'marstek_pref_limits',
-  OUTAGES: 'marstek_pref_outages',
   OUTAGE_CONFIG: 'marstek_pref_outage_config',
+  CACHED_OUTAGES_TODAY: 'marstek_pref_cached_outages_today',
+  CACHED_OUTAGES_TOMORROW: 'marstek_pref_cached_outages_tomorrow',
   WIDGET_SIZE: 'marstek_pref_widget_size',
 } as const;
 
@@ -35,10 +34,10 @@ export interface StoredPreferences {
   lastCachedGrid: number;
   lastUpdateTime: string;
   lastFullStatus: MarstekStatus | null;
-  demoMode: boolean;
   limits: BatteryLimits;
-  outageSlots: OutageSlot[];
   outageConfig: OutageConfig;
+  cachedOutageToday: OutageSlot[];
+  cachedOutageTomorrow: OutageSlot[];
   widgetSize: WidgetSizeMode;
 }
 
@@ -52,17 +51,17 @@ export function loadPreferences(): StoredPreferences {
     const rawGrid = localStorage.getItem(STORAGE_KEYS.LAST_GRID);
     const rawTime = localStorage.getItem(STORAGE_KEYS.LAST_UPDATE_TIME);
     const rawFull = localStorage.getItem(STORAGE_KEYS.LAST_FULL_STATUS);
-    const rawDemo = localStorage.getItem(STORAGE_KEYS.DEMO_MODE);
     const rawLimits = localStorage.getItem(STORAGE_KEYS.LIMITS);
-    const rawOutages = localStorage.getItem(STORAGE_KEYS.OUTAGES);
     const rawOutageConfig = localStorage.getItem(STORAGE_KEYS.OUTAGE_CONFIG);
+    const rawToday = localStorage.getItem(STORAGE_KEYS.CACHED_OUTAGES_TODAY);
+    const rawTomorrow = localStorage.getItem(STORAGE_KEYS.CACHED_OUTAGES_TOMORROW);
     const rawWidgetSize = localStorage.getItem(STORAGE_KEYS.WIDGET_SIZE);
 
     const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : 30000;
-    const parsedSoc = rawSoc ? Number.parseInt(rawSoc, 10) : 72;
-    const parsedCap = rawCap ? Number.parseInt(rawCap, 10) : 5120;
-    const parsedPv = rawPv ? Number.parseInt(rawPv, 10) : 1200;
-    const parsedGrid = rawGrid ? Number.parseInt(rawGrid, 10) : 1200;
+    const parsedSoc = rawSoc ? Number.parseInt(rawSoc, 10) : -1;
+    const parsedCap = rawCap ? Number.parseInt(rawCap, 10) : 0;
+    const parsedPv = rawPv ? Number.parseInt(rawPv, 10) : 0;
+    const parsedGrid = rawGrid ? Number.parseInt(rawGrid, 10) : 0;
 
     let lastFullStatus: MarstekStatus | null = null;
     if (rawFull) {
@@ -91,29 +90,15 @@ export function loadPreferences(): StoredPreferences {
       }
     }
 
-    let outageSlots: OutageSlot[] = DEFAULT_OUTAGE_SLOTS;
-    if (rawOutages) {
-      try {
-        const parsed = JSON.parse(rawOutages) as OutageSlot[];
-        if (Array.isArray(parsed)) {
-          outageSlots = parsed;
-        }
-      } catch {
-        outageSlots = DEFAULT_OUTAGE_SLOTS;
-      }
-    }
-
     let outageConfig: OutageConfig = DEFAULT_OUTAGE_CONFIG;
     if (rawOutageConfig) {
       try {
         const parsed = JSON.parse(rawOutageConfig) as Partial<OutageConfig>;
         if (
-          (parsed.mode === 'api' || parsed.mode === 'manual') &&
           typeof parsed.providerId === 'string' &&
           typeof parsed.group === 'string'
         ) {
           outageConfig = {
-            mode: parsed.mode,
             providerId: parsed.providerId,
             group: parsed.group,
           };
@@ -123,37 +108,55 @@ export function loadPreferences(): StoredPreferences {
       }
     }
 
-    const demoMode = rawDemo === null ? true : rawDemo === 'true';
+    let cachedOutageToday: OutageSlot[] = [];
+    if (rawToday) {
+      try {
+        const parsed = JSON.parse(rawToday) as OutageSlot[];
+        if (Array.isArray(parsed)) cachedOutageToday = parsed;
+      } catch {
+        cachedOutageToday = [];
+      }
+    }
+
+    let cachedOutageTomorrow: OutageSlot[] = [];
+    if (rawTomorrow) {
+      try {
+        const parsed = JSON.parse(rawTomorrow) as OutageSlot[];
+        if (Array.isArray(parsed)) cachedOutageTomorrow = parsed;
+      } catch {
+        cachedOutageTomorrow = [];
+      }
+    }
 
     return {
       deviceIp: rawIp && rawIp.trim() ? rawIp.trim() : '192.168.0.190',
       devicePort: Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 30000,
-      lastCachedSoc: Number.isFinite(parsedSoc) ? parsedSoc : 72,
-      lastCachedCap: Number.isFinite(parsedCap) ? parsedCap : 5120,
-      lastCachedPv: Number.isFinite(parsedPv) ? parsedPv : 1200,
-      lastCachedGrid: Number.isFinite(parsedGrid) ? parsedGrid : 1200,
-      lastUpdateTime: rawTime || '15:30',
+      lastCachedSoc: Number.isFinite(parsedSoc) ? parsedSoc : -1,
+      lastCachedCap: Number.isFinite(parsedCap) ? parsedCap : 0,
+      lastCachedPv: Number.isFinite(parsedPv) ? parsedPv : 0,
+      lastCachedGrid: Number.isFinite(parsedGrid) ? parsedGrid : 0,
+      lastUpdateTime: rawTime || '--:--',
       lastFullStatus,
-      demoMode,
       limits,
-      outageSlots,
       outageConfig,
+      cachedOutageToday,
+      cachedOutageTomorrow,
       widgetSize: rawWidgetSize === 'compact' ? 'compact' : 'full',
     };
   } catch {
     return {
       deviceIp: '192.168.0.190',
       devicePort: 30000,
-      lastCachedSoc: 72,
-      lastCachedCap: 5120,
-      lastCachedPv: 1200,
-      lastCachedGrid: 1200,
-      lastUpdateTime: '15:30',
+      lastCachedSoc: -1,
+      lastCachedCap: 0,
+      lastCachedPv: 0,
+      lastCachedGrid: 0,
+      lastUpdateTime: '--:--',
       lastFullStatus: null,
-      demoMode: true,
       limits: DEFAULT_LIMITS,
-      outageSlots: DEFAULT_OUTAGE_SLOTS,
       outageConfig: DEFAULT_OUTAGE_CONFIG,
+      cachedOutageToday: [],
+      cachedOutageTomorrow: [],
       widgetSize: 'full',
     };
   }
@@ -168,14 +171,6 @@ export function saveDeviceConfig(ip: string, port: number): void {
   }
 }
 
-export function saveDemoMode(enabled: boolean): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.DEMO_MODE, String(enabled));
-  } catch {
-    // Ignore storage quota errors
-  }
-}
-
 export function saveLimits(limits: BatteryLimits): void {
   try {
     localStorage.setItem(STORAGE_KEYS.LIMITS, JSON.stringify(limits));
@@ -184,17 +179,18 @@ export function saveLimits(limits: BatteryLimits): void {
   }
 }
 
-export function saveOutageSlots(slots: OutageSlot[]): void {
+export function saveOutageConfig(config: OutageConfig): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.OUTAGES, JSON.stringify(slots));
+    localStorage.setItem(STORAGE_KEYS.OUTAGE_CONFIG, JSON.stringify(config));
   } catch {
     // Ignore storage quota errors
   }
 }
 
-export function saveOutageConfig(config: OutageConfig): void {
+export function saveCachedOutages(today: OutageSlot[], tomorrow: OutageSlot[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.OUTAGE_CONFIG, JSON.stringify(config));
+    localStorage.setItem(STORAGE_KEYS.CACHED_OUTAGES_TODAY, JSON.stringify(today));
+    localStorage.setItem(STORAGE_KEYS.CACHED_OUTAGES_TOMORROW, JSON.stringify(tomorrow));
   } catch {
     // Ignore storage quota errors
   }
