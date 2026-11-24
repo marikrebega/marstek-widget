@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 
 class MarstekFullWidgetProvider : AppWidgetProvider() {
 
@@ -13,14 +14,38 @@ class MarstekFullWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         val pendingResult = goAsync()
-        MarstekWidgetUpdater.refreshAsync(context, pendingResult)
+        MarstekWidgetUpdater.refreshAsync(context, pendingResult, isUserInitiated = false)
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        MarstekWidgetUpdater.updateSingleWidgetFromCache(context, MarstekFullWidgetProvider::class.java, appWidgetId)
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        for (id in appWidgetIds) {
+            MarstekStore.clearWidgetState(context, id)
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == MarstekWidgetUpdater.ACTION_REFRESH) {
+        val action = intent.action ?: return
+        if (action.startsWith("com.marstek.widget.ACTION_")) {
             val pendingResult = goAsync()
-            MarstekWidgetUpdater.refreshAsync(context, pendingResult)
+            val handled = MarstekWidgetUpdater.handleActionBroadcast(
+                context,
+                MarstekFullWidgetProvider::class.java,
+                intent,
+                pendingResult
+            )
+            if (!handled) pendingResult.finish()
         }
     }
 }

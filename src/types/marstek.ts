@@ -10,6 +10,7 @@ export interface MarstekStatus {
   totalLoadEnergy?: number;
   deviceName?: string;
   workMode?: string;
+  batTemp?: number;
   timestamp: number;
 }
 
@@ -56,7 +57,7 @@ export interface OutageScheduleData {
 
 export const DEFAULT_OUTAGE_CONFIG: OutageConfig = {
   providerId: 'prykarpattya-oe',
-  group: '1.1',
+  group: '5.2',
 };
 
 export function getKyivMinutes(date: Date = new Date()): number {
@@ -97,6 +98,46 @@ export function getBatteryMode(netBatteryPower: number): BatteryMode {
   return 'idle';
 }
 
+export function getTemperatureVisuals(tempC?: number): {
+  label: string;
+  color: string;
+  bgColor: string;
+  level: 'normal' | 'warn' | 'critical' | 'unknown';
+} {
+  if (typeof tempC !== 'number' || !Number.isFinite(tempC)) {
+    return {
+      label: '--°C',
+      color: '#A8B0B8',
+      bgColor: '#1B2025',
+      level: 'unknown',
+    };
+  }
+  const rounded = Math.round(tempC);
+  const label = `${rounded}°C`;
+  if (rounded <= 0 || rounded >= 50) {
+    return {
+      label,
+      color: '#F44336',
+      bgColor: 'rgba(244,67,54,0.16)',
+      level: 'critical',
+    };
+  }
+  if (rounded <= 9 || rounded >= 41) {
+    return {
+      label,
+      color: '#FFC24D',
+      bgColor: 'rgba(255,194,77,0.16)',
+      level: 'warn',
+    };
+  }
+  return {
+    label,
+    color: '#3DDC84',
+    bgColor: 'rgba(61,220,132,0.16)',
+    level: 'normal',
+  };
+}
+
 export function getModeVisuals(mode: BatteryMode): {
   label: string;
   color: string;
@@ -132,6 +173,14 @@ export function formatDurationUk(totalMinutes: number): string {
   return `${hours} год ${minsPadded} хв`;
 }
 
+export function formatCompactDurationUk(totalMinutes: number): string {
+  const clamped = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(clamped / 60);
+  const mins = clamped % 60;
+  if (hours === 0) return `${mins}хв`;
+  return `${hours}г ${String(mins).padStart(2, '0')}хв`;
+}
+
 export function computeEnergyDurations(
   soc: number,
   batCapWh: number,
@@ -139,11 +188,13 @@ export function computeEnergyDurations(
 ): {
   mode: BatteryMode;
   primaryValueText: string;
+  compactPrimaryValueText: string;
   secondaryValueText: string;
   compactSubText: string;
   leftLabel: string;
   rightLabel: string;
   cardTitle: string;
+  dischargeMinutesLeft: number | null;
 } {
   const mode = getBatteryMode(netBatteryPower);
   const capacityWh = batCapWh > 0 ? batCapWh : 2560;
@@ -157,6 +208,8 @@ export function computeEnergyDurations(
     const minsToFull = ((toFullPct / 100) * capacityWh) / powerW * 60;
     const primaryValueText =
       clampedSoc >= 100 ? 'Заряджено' : formatDurationUk(minsToFull);
+    const compactPrimaryValueText =
+      clampedSoc >= 100 ? 'Заряджено' : formatCompactDurationUk(minsToFull);
 
     return {
       mode,
@@ -164,8 +217,10 @@ export function computeEnergyDurations(
       leftLabel: 'До 100%',
       rightLabel: 'Залишилось зарядити',
       primaryValueText,
+      compactPrimaryValueText,
       secondaryValueText: `${remainingWh} Вт·год`,
       compactSubText: `до 100% · ${formatPowerUk(netBatteryPower)}`,
+      dischargeMinutesLeft: null,
     };
   }
 
@@ -174,6 +229,8 @@ export function computeEnergyDurations(
     const minsToZero = ((clampedSoc / 100) * capacityWh) / powerW * 60;
     const primaryValueText =
       clampedSoc <= 0 ? 'Розряджено' : formatDurationUk(minsToZero);
+    const compactPrimaryValueText =
+      clampedSoc <= 0 ? 'Розряджено' : formatCompactDurationUk(minsToZero);
 
     return {
       mode,
@@ -181,8 +238,10 @@ export function computeEnergyDurations(
       leftLabel: 'До 0%',
       rightLabel: 'Залишок енергії',
       primaryValueText,
+      compactPrimaryValueText,
       secondaryValueText: `${availableWh} Вт·год`,
       compactSubText: `до 0% · ${formatPowerUk(netBatteryPower)}`,
+      dischargeMinutesLeft: Math.round(minsToZero),
     };
   }
 
@@ -192,8 +251,10 @@ export function computeEnergyDurations(
     leftLabel: 'Запас енергії',
     rightLabel: 'Ємність батареї',
     primaryValueText: `${availableWh} Вт·год`,
+    compactPrimaryValueText: `${availableWh} Вт·г`,
     secondaryValueText: `${capacityWh} Вт·год`,
     compactSubText: `ємність ${capacityWh} Вт·год`,
+    dischargeMinutesLeft: null,
   };
 }
 
@@ -205,13 +266,33 @@ export function timeStringToMinutes(hhmm: string): number {
   return Math.max(0, Math.min(1440, h * 60 + m));
 }
 
+export interface OutageRollingMarker {
+  id: string;
+  leftPct: number;
+  label: string;
+}
+
 export interface OutageSummary {
   rangeText: string;
   countdownText: string;
   compactCountdownText: string;
+  shortActionText: string;
+  microTimeText: string;
+  targetOutageMinutes: number | null;
   isActiveNow: boolean;
   nowPercent: number;
   blocks: Array<{ id: string; leftPct: number; widthPct: number }>;
+  rollingBlocks: Array<{ id: string; leftPct: number; widthPct: number }>;
+  rollingMarkers: OutageRollingMarker[];
+  rollingEndLabel: string;
+  todaySlotChips: Array<{ id: string; label: string; isHighlight: boolean }>;
+}
+
+function minutesToHHMM(absMinutes: number): string {
+  const normalized = ((Math.round(absMinutes) % 1440) + 1440) % 1440;
+  const h = String(Math.floor(normalized / 60)).padStart(2, '0');
+  const m = String(normalized % 60).padStart(2, '0');
+  return `${h}:${m}`;
 }
 
 export function evaluateOutageSchedule(
@@ -241,34 +322,132 @@ export function evaluateOutageSchedule(
     widthPct: ((s.endMin - s.startMin) / 1440) * 100,
   }));
 
+  // Compute rolling +12h (720 min) window starting at clampedNow
+  const windowMinutes = 720;
+  const windowEnd = clampedNow + windowMinutes;
+  const combinedAbsSlots = [
+    ...sorted.map((s) => ({
+      id: `today-${s.id}`,
+      absStart: s.startMin,
+      absEnd: s.endMin,
+      startLabel: s.start,
+      endLabel: s.end,
+    })),
+    ...sortedTomorrow.map((s) => ({
+      id: `tomorrow-${s.id}`,
+      absStart: 1440 + s.startMin,
+      absEnd: 1440 + s.endMin,
+      startLabel: s.start,
+      endLabel: s.end,
+    })),
+  ];
+
+  const rollingBlocks: Array<{ id: string; leftPct: number; widthPct: number }> = [];
+  const candidateMarks: Array<{ id: string; leftPct: number; label: string; priority: number }> = [];
+
+  for (const s of combinedAbsSlots) {
+    if (s.absEnd <= clampedNow || s.absStart >= windowEnd) continue;
+    const clipStart = Math.max(clampedNow, s.absStart);
+    const clipEnd = Math.min(windowEnd, s.absEnd);
+    const leftPct = ((clipStart - clampedNow) / windowMinutes) * 100;
+    const widthPct = ((clipEnd - clipStart) / windowMinutes) * 100;
+    rollingBlocks.push({
+      id: s.id,
+      leftPct,
+      widthPct,
+    });
+
+    const isOngoing = s.absStart <= clampedNow && s.absEnd > clampedNow;
+    if (!isOngoing && s.absStart > clampedNow && s.absStart < windowEnd) {
+      candidateMarks.push({
+        id: `${s.id}-start`,
+        leftPct,
+        label: s.startLabel,
+        priority: 1,
+      });
+    }
+    if (s.absEnd > clampedNow && s.absEnd < windowEnd) {
+      const endPct = ((s.absEnd - clampedNow) / windowMinutes) * 100;
+      candidateMarks.push({
+        id: `${s.id}-end`,
+        leftPct: endPct,
+        label: s.endLabel,
+        priority: isOngoing ? 0 : 2,
+      });
+    }
+  }
+
+  // Filter rolling markers so they never collide with "Зараз" (0%), "+12г" (100%), or each other
+  const rollingMarkers: OutageRollingMarker[] = [];
+  const sortedCandidates = [...candidateMarks].sort(
+    (a, b) => a.priority - b.priority || a.leftPct - b.leftPct
+  );
+  for (const cand of sortedCandidates) {
+    if (cand.leftPct < 23 || cand.leftPct > 77) continue;
+    const collides = rollingMarkers.some((m) => Math.abs(m.leftPct - cand.leftPct) < 26);
+    if (!collides) {
+      rollingMarkers.push({
+        id: cand.id,
+        leftPct: cand.leftPct,
+        label: cand.label,
+      });
+    }
+    if (rollingMarkers.length >= 2) break;
+  }
+  rollingMarkers.sort((a, b) => a.leftPct - b.leftPct);
+
+  const rollingEndLabel = minutesToHHMM(windowEnd);
+
   const currentSlot = sorted.find(
     (s) => clampedNow >= s.startMin && clampedNow < s.endMin
   );
+  const nextSlot = sorted.find((s) => s.startMin > clampedNow);
+
+  const todaySlotChips = sorted.map((s) => ({
+    id: s.id,
+    label: `${s.start}–${s.end}`,
+    isHighlight: s.id === (currentSlot?.id ?? nextSlot?.id),
+  }));
 
   if (currentSlot) {
     const minsLeft = currentSlot.endMin - clampedNow;
     const dur = formatDurationUk(minsLeft);
+    const shortDur = formatCompactDurationUk(minsLeft);
     return {
-      rangeText: `${currentSlot.start} – ${currentSlot.end}`,
-      countdownText: `Відключення зараз · світло через ${dur}`,
-      compactCountdownText: `Світло увімкнуть через ${dur}`,
+      rangeText: `${currentSlot.start}–${currentSlot.end}`,
+      countdownText: `Світло о ${currentSlot.end} (через ${dur})`,
+      compactCountdownText: `Світло о ${currentSlot.end} · ${shortDur}`,
+      shortActionText: `о ${currentSlot.end} (${shortDur})`,
+      microTimeText: `о ${currentSlot.end}`,
+      targetOutageMinutes: minsLeft,
       isActiveNow: true,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
+      rollingBlocks,
+      rollingMarkers,
+      rollingEndLabel,
+      todaySlotChips,
     };
   }
 
-  const nextSlot = sorted.find((s) => s.startMin > clampedNow);
   if (nextSlot) {
     const minsUntil = nextSlot.startMin - clampedNow;
     const dur = formatDurationUk(minsUntil);
+    const shortDur = formatCompactDurationUk(minsUntil);
     return {
-      rangeText: `${nextSlot.start} – ${nextSlot.end}`,
-      countdownText: `Наступне відключення через ${dur}`,
-      compactCountdownText: `Світло вимкнуть через ${dur}`,
+      rangeText: `${nextSlot.start}–${nextSlot.end}`,
+      countdownText: `Вимкнення о ${nextSlot.start} (через ${dur})`,
+      compactCountdownText: `Вимкн. о ${nextSlot.start} · ${shortDur}`,
+      shortActionText: `${nextSlot.start} (${shortDur})`,
+      microTimeText: `о ${nextSlot.start}`,
+      targetOutageMinutes: nextSlot.endMin - nextSlot.startMin,
       isActiveNow: false,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
+      rollingBlocks,
+      rollingMarkers,
+      rollingEndLabel,
+      todaySlotChips,
     };
   }
 
@@ -276,13 +455,21 @@ export function evaluateOutageSchedule(
     const firstTomorrow = sortedTomorrow[0];
     const minsUntil = 1440 - clampedNow + firstTomorrow.startMin;
     const dur = formatDurationUk(minsUntil);
+    const shortDur = formatCompactDurationUk(minsUntil);
     return {
-      rangeText: `${firstTomorrow.start} – ${firstTomorrow.end}`,
-      countdownText: `Завтра · через ${dur}`,
-      compactCountdownText: `Завтра о ${firstTomorrow.start}`,
+      rangeText: `${firstTomorrow.start}–${firstTomorrow.end}`,
+      countdownText: `Завтра о ${firstTomorrow.start} (через ${dur})`,
+      compactCountdownText: `Завтра о ${firstTomorrow.start} · ${shortDur}`,
+      shortActionText: `завтра ${firstTomorrow.start}`,
+      microTimeText: firstTomorrow.start,
+      targetOutageMinutes: firstTomorrow.endMin - firstTomorrow.startMin,
       isActiveNow: false,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
+      rollingBlocks,
+      rollingMarkers,
+      rollingEndLabel,
+      todaySlotChips,
     };
   }
 
@@ -290,20 +477,34 @@ export function evaluateOutageSchedule(
     return {
       rangeText: 'Без відключень',
       countdownText: 'На сьогодні відключень більше немає',
-      compactCountdownText: 'На сьогодні відключень немає',
+      compactCountdownText: 'Без відключень',
+      shortActionText: 'Світло є',
+      microTimeText: 'Є світло',
+      targetOutageMinutes: null,
       isActiveNow: false,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
+      rollingBlocks,
+      rollingMarkers,
+      rollingEndLabel,
+      todaySlotChips,
     };
   }
 
   return {
     rangeText: 'Немає відключень',
     countdownText: 'На сьогодні відключень не заплановано',
-    compactCountdownText: 'Без відключень сьогодні',
+    compactCountdownText: 'Без відключень',
+    shortActionText: 'Без відключень',
+    microTimeText: 'Є світло',
+    targetOutageMinutes: null,
     isActiveNow: false,
     nowPercent: (clampedNow / 1440) * 100,
     blocks,
+    rollingBlocks,
+    rollingMarkers,
+    rollingEndLabel,
+    todaySlotChips,
   };
 }
 

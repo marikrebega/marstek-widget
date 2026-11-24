@@ -22,9 +22,29 @@ object MarstekClient {
 
     data class OutageFetchOutcome(
         val bridgeJson: String,
+        val todayDateLabel: String,
+        val tomorrowDateLabel: String,
         val todayJson: String,
         val tomorrowJson: String
     )
+
+    private fun parseTempC(obj: JSONObject?, vararg keys: String): Float? {
+        if (obj == null) return null
+        for (key in keys) {
+            if (!obj.has(key) || obj.isNull(key)) continue
+            val raw = obj.opt(key)
+            val parsed = when (raw) {
+                is Number -> raw.toFloat()
+                is String -> raw.trim().toFloatOrNull()
+                else -> null
+            }
+            if (parsed != null && !parsed.isNaN() && !parsed.isInfinite()) {
+                val normalized = if (parsed > 120f) parsed / 10f else parsed
+                return kotlin.math.round(normalized * 10f) / 10f
+            }
+        }
+        return null
+    }
 
     private fun sendUdpCommand(ip: String, port: Int, payload: String, timeoutMs: Int): String {
         var socket: DatagramSocket? = null
@@ -91,11 +111,11 @@ object MarstekClient {
 
                 val deviceName = root.optString("src", "").trim()
                 var batCap = result.optInt("bat_cap", 0)
+                var batTemp = parseTempC(result, "bat_temp", "temp")
                 var workMode = ""
                 val extraLogs = JSONArray()
 
                 if (includeOptionalDetails) {
-                    // Sequential pause prevents Venus D UDP stack from dropping back-to-back packets
                     try {
                         Thread.sleep(120)
                         val batReply = sendUdpCommand(
@@ -111,6 +131,9 @@ object MarstekClient {
                         val batRes = JSONObject(batReply).optJSONObject("result")
                         if (batCap <= 0 && batRes != null) {
                             batCap = batRes.optInt("rated_capacity", 0)
+                        }
+                        if (batTemp == null && batRes != null) {
+                            batTemp = parseTempC(batRes, "bat_temp", "temp")
                         }
                     } catch (_: Exception) {
                     }
@@ -148,6 +171,7 @@ object MarstekClient {
                     totalLoadEnergy = result.optLong("total_load_energy", 0L),
                     deviceName = deviceName,
                     workMode = workMode,
+                    batTemp = batTemp,
                     timestamp = now
                 )
 
@@ -163,6 +187,7 @@ object MarstekClient {
                     put("totalLoadEnergy", statusData.totalLoadEnergy)
                     if (deviceName.isNotEmpty()) put("deviceName", deviceName)
                     if (workMode.isNotEmpty()) put("workMode", workMode)
+                    if (batTemp != null) put("batTemp", batTemp.toDouble())
                     put("timestamp", now)
                 }
 
@@ -270,10 +295,12 @@ object MarstekClient {
     fun fetchOutages(providerId: String, requestedGroup: String): OutageFetchOutcome {
         val kyivZone = ZoneId.of("Europe/Kyiv")
         val kyivNow = ZonedDateTime.now(kyivZone)
+        val defaultTodayDate = kyivNow.toLocalDate().toString()
+        val defaultTomorrowDate = kyivNow.plusDays(1).toLocalDate().toString()
 
         if (providerId == "prykarpattya-oe") {
             val queues = listOf("1.1", "1.2", "2.1", "2.2", "3.1", "3.2", "4.1", "4.2", "5.1", "5.2", "6.1", "6.2")
-            val selectedGroup = if (queues.contains(requestedGroup)) requestedGroup else queues.first()
+            val selectedGroup = if (queues.contains(requestedGroup)) requestedGroup else "5.2"
             val url = "https://be-svitlo.oe.if.ua/schedule-by-queue?queue=$selectedGroup"
             val raw = httpGet(
                 url,
@@ -284,6 +311,7 @@ object MarstekClient {
             )
             val days = JSONArray(raw)
             val todayStr = kyivNow.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+            val tomorrowStr = kyivNow.plusDays(1).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
             var todayIdx = 0
             for (i in 0 until days.length()) {
                 if (days.getJSONObject(i).optString("eventDate") == todayStr) {
@@ -310,6 +338,8 @@ object MarstekClient {
 
             val todaySlots = parseDay(todayObj)
             val tomorrowSlots = parseDay(tomorrowObj)
+            val todayLabel = todayObj?.optString("eventDate")?.takeIf { it.isNotEmpty() } ?: todayStr
+            val tomorrowLabel = tomorrowObj?.optString("eventDate")?.takeIf { it.isNotEmpty() } ?: tomorrowStr
             val bridgeJson = JSONObject().apply {
                 put("providerId", providerId)
                 put("providerName", "Прикарпаттяобленерго (Івано-Франківська обл.)")
@@ -317,12 +347,18 @@ object MarstekClient {
                 put("selectedGroup", selectedGroup)
                 put("status", "ScheduleApplies")
                 put("updatedOn", JSONObject.NULL)
-                put("dateLabel", todayObj?.optString("eventDate") ?: todayStr)
+                put("dateLabel", todayLabel)
                 put("slots", todaySlots)
                 put("tomorrowSlots", tomorrowSlots)
                 put("sourceUrl", url)
             }.toString()
-            return OutageFetchOutcome(bridgeJson, todaySlots.toString(), tomorrowSlots.toString())
+            return OutageFetchOutcome(
+                bridgeJson = bridgeJson,
+                todayDateLabel = todayLabel,
+                tomorrowDateLabel = tomorrowLabel,
+                todayJson = todaySlots.toString(),
+                tomorrowJson = tomorrowSlots.toString()
+            )
         }
 
         if (providerId.startsWith("yasno-")) {
@@ -355,6 +391,8 @@ object MarstekClient {
             val tomorrowObj = groupObj?.optJSONObject("tomorrow")
             val todaySlots = parseYasnoDay(todayObj)
             val tomorrowSlots = parseYasnoDay(tomorrowObj)
+            val todayLabel = todayObj?.optString("date")?.take(10)?.takeIf { it.isNotEmpty() } ?: defaultTodayDate
+            val tomorrowLabel = tomorrowObj?.optString("date")?.take(10)?.takeIf { it.isNotEmpty() } ?: defaultTomorrowDate
             val bridgeJson = JSONObject().apply {
                 put("providerId", providerId)
                 put("providerName", name)
@@ -362,12 +400,18 @@ object MarstekClient {
                 put("selectedGroup", selectedGroup)
                 put("status", todayObj?.optString("status") ?: "Unknown")
                 put("updatedOn", groupObj?.optString("updatedOn") ?: JSONObject.NULL)
-                put("dateLabel", todayObj?.optString("date")?.take(10) ?: kyivNow.toLocalDate().toString())
+                put("dateLabel", todayLabel)
                 put("slots", todaySlots)
                 put("tomorrowSlots", tomorrowSlots)
                 put("sourceUrl", url)
             }.toString()
-            return OutageFetchOutcome(bridgeJson, todaySlots.toString(), tomorrowSlots.toString())
+            return OutageFetchOutcome(
+                bridgeJson = bridgeJson,
+                todayDateLabel = todayLabel,
+                tomorrowDateLabel = tomorrowLabel,
+                todayJson = todaySlots.toString(),
+                tomorrowJson = tomorrowSlots.toString()
+            )
         }
 
         val (name, url) = if (providerId == "dtek-odesa") {
@@ -412,7 +456,10 @@ object MarstekClient {
 
         val dateLabel = todayKey.toLongOrNull()?.let {
             Instant.ofEpochSecond(it).atZone(kyivZone).toLocalDate().toString()
-        } ?: kyivNow.toLocalDate().toString()
+        } ?: defaultTodayDate
+        val tomorrowLabel = tomorrowKey?.toLongOrNull()?.let {
+            Instant.ofEpochSecond(it).atZone(kyivZone).toLocalDate().toString()
+        } ?: defaultTomorrowDate
 
         val todaySlots = parseHourly(todayMap.optJSONObject(selectedGroup))
         val tomorrowSlots = parseHourly(tomorrowMap?.optJSONObject(selectedGroup))
@@ -428,6 +475,12 @@ object MarstekClient {
             put("tomorrowSlots", tomorrowSlots)
             put("sourceUrl", url)
         }.toString()
-        return OutageFetchOutcome(bridgeJson, todaySlots.toString(), tomorrowSlots.toString())
+        return OutageFetchOutcome(
+            bridgeJson = bridgeJson,
+            todayDateLabel = dateLabel,
+            tomorrowDateLabel = tomorrowLabel,
+            todayJson = todaySlots.toString(),
+            tomorrowJson = tomorrowSlots.toString()
+        )
     }
 }

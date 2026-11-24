@@ -20,7 +20,8 @@ data class MarstekConfig(
     val ip: String,
     val port: Int,
     val providerId: String,
-    val group: String
+    val group: String,
+    val notifyOutages: Boolean
 )
 
 data class MarstekStatusData(
@@ -35,7 +36,13 @@ data class MarstekStatusData(
     val totalLoadEnergy: Long,
     val deviceName: String,
     val workMode: String,
+    val batTemp: Float?,
     val timestamp: Long
+)
+
+data class TemperatureVisuals(
+    val label: String,
+    val colorInt: Int
 )
 
 data class OutageSlotData(
@@ -50,8 +57,10 @@ data class EnergyDurationsUi(
     val leftLabel: String,
     val rightLabel: String,
     val primaryValueText: String,
+    val compactPrimaryValueText: String,
     val secondaryValueText: String,
-    val compactSubText: String
+    val compactSubText: String,
+    val dischargeMinutesLeft: Double?
 )
 
 data class OutageBlockRatio(
@@ -59,12 +68,30 @@ data class OutageBlockRatio(
     val widthRatio: Float
 )
 
+data class OutageChipUi(
+    val label: String,
+    val isHighlight: Boolean
+)
+
 data class OutageSummaryUi(
     val rangeText: String,
     val countdownText: String,
     val compactCountdownText: String,
+    val shortActionText: String,
+    val microTimeText: String,
+    val isActiveNow: Boolean,
     val nowRatio: Float,
-    val blocks: List<OutageBlockRatio>
+    val blocks: List<OutageBlockRatio>,
+    val todaySlotChips: List<OutageChipUi>,
+    val targetOutageMinutes: Double?
+)
+
+data class OutageChangeResult(
+    val todayChanged: Boolean,
+    val tomorrowAppeared: Boolean,
+    val tomorrowChanged: Boolean,
+    val todaySlots: List<OutageSlotData>,
+    val tomorrowSlots: List<OutageSlotData>
 )
 
 object MarstekStore {
@@ -74,6 +101,7 @@ object MarstekStore {
     private const val KEY_PORT = "device_port"
     private const val KEY_PROVIDER_ID = "provider_id"
     private const val KEY_GROUP = "outage_group"
+    private const val KEY_NOTIFY_OUTAGES = "notify_outages"
 
     private const val KEY_LAST_SOC = "last_soc"
     private const val KEY_LAST_CAP = "last_cap"
@@ -82,12 +110,14 @@ object MarstekStore {
     private const val KEY_LAST_OFFGRID = "last_offgrid"
     private const val KEY_LAST_DEVICE = "last_device_name"
     private const val KEY_LAST_WORK_MODE = "last_work_mode"
+    private const val KEY_LAST_TEMP = "last_bat_temp"
     private const val KEY_LAST_UPDATE = "last_update_time"
     private const val KEY_LAST_ERROR = "last_is_error"
 
     private const val KEY_OUTAGE_TODAY = "outage_today_json"
     private const val KEY_OUTAGE_TOMORROW = "outage_tomorrow_json"
-    private const val KEY_USER_PRESENT_TS = "last_user_present_ts"
+    private const val KEY_OUTAGE_BASELINE_KEY = "outage_baseline_key"
+    private const val KEY_OUTAGE_BASELINE_DATES = "outage_baseline_dates"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -97,8 +127,9 @@ object MarstekStore {
         val ip = p.getString(KEY_IP, "192.168.0.190")?.trim().orEmpty().ifEmpty { "192.168.0.190" }
         val port = p.getInt(KEY_PORT, 30000).let { if (it in 1..65535) it else 30000 }
         val provider = p.getString(KEY_PROVIDER_ID, "prykarpattya-oe").orEmpty().ifEmpty { "prykarpattya-oe" }
-        val group = p.getString(KEY_GROUP, "1.1").orEmpty().ifEmpty { "1.1" }
-        return MarstekConfig(ip, port, provider, group)
+        val group = p.getString(KEY_GROUP, "5.2").orEmpty().ifEmpty { "5.2" }
+        val notifyOutages = p.getBoolean(KEY_NOTIFY_OUTAGES, true)
+        return MarstekConfig(ip, port, provider, group, notifyOutages)
     }
 
     fun saveConfig(
@@ -106,13 +137,15 @@ object MarstekStore {
         ip: String,
         port: Int,
         providerId: String,
-        group: String
+        group: String,
+        notifyOutages: Boolean
     ) {
         prefs(context).edit()
             .putString(KEY_IP, ip.trim().ifEmpty { "192.168.0.190" })
             .putInt(KEY_PORT, if (port in 1..65535) port else 30000)
             .putString(KEY_PROVIDER_ID, providerId.ifEmpty { "prykarpattya-oe" })
-            .putString(KEY_GROUP, group.ifEmpty { "1.1" })
+            .putString(KEY_GROUP, group.ifEmpty { "5.2" })
+            .putBoolean(KEY_NOTIFY_OUTAGES, notifyOutages)
             .apply()
     }
 
@@ -127,6 +160,7 @@ object MarstekStore {
             .putInt(KEY_LAST_OFFGRID, status.offGridPower)
             .putString(KEY_LAST_DEVICE, status.deviceName)
             .putString(KEY_LAST_WORK_MODE, status.workMode)
+            .putFloat(KEY_LAST_TEMP, status.batTemp ?: Float.NaN)
             .putString(KEY_LAST_UPDATE, timeText)
             .putBoolean(KEY_LAST_ERROR, false)
             .apply()
@@ -144,12 +178,14 @@ object MarstekStore {
         val offGridPower: Int,
         val deviceName: String,
         val workMode: String,
+        val batTemp: Float?,
         val lastUpdateTime: String,
         val isError: Boolean
     )
 
     fun loadCachedStatus(context: Context): CachedStatus {
         val p = prefs(context)
+        val rawTemp = p.getFloat(KEY_LAST_TEMP, Float.NaN)
         return CachedStatus(
             soc = p.getInt(KEY_LAST_SOC, -1),
             batCap = p.getInt(KEY_LAST_CAP, 0),
@@ -158,6 +194,7 @@ object MarstekStore {
             offGridPower = p.getInt(KEY_LAST_OFFGRID, 0),
             deviceName = p.getString(KEY_LAST_DEVICE, "").orEmpty(),
             workMode = p.getString(KEY_LAST_WORK_MODE, "").orEmpty(),
+            batTemp = if (rawTemp.isNaN()) null else rawTemp,
             lastUpdateTime = p.getString(KEY_LAST_UPDATE, "--:--").orEmpty(),
             isError = p.getBoolean(KEY_LAST_ERROR, false)
         )
@@ -177,16 +214,121 @@ object MarstekStore {
         return today to tomorrow
     }
 
-    fun shouldAllowUserPresentRefresh(context: Context): Boolean {
-        val p = prefs(context)
-        val now = System.currentTimeMillis()
-        val last = p.getLong(KEY_USER_PRESENT_TS, 0L)
-        if (now - last < 60_000L) return false
-        p.edit().putLong(KEY_USER_PRESENT_TS, now).apply()
-        return true
+    fun getWidgetDay(context: Context, widgetId: Int): String {
+        return prefs(context).getString("widget_day_$widgetId", "today") ?: "today"
     }
 
-    private fun parseSlotsJson(jsonStr: String): List<OutageSlotData> {
+    fun setWidgetDay(context: Context, widgetId: Int, day: String) {
+        prefs(context).edit().putString("widget_day_$widgetId", day).apply()
+    }
+
+    fun getWidgetWindowStartHour(context: Context, widgetId: Int): Int {
+        return prefs(context).getInt("widget_win_start_$widgetId", -1)
+    }
+
+    fun setWidgetWindowStartHour(context: Context, widgetId: Int, startHour: Int) {
+        prefs(context).edit().putInt("widget_win_start_$widgetId", startHour).apply()
+    }
+
+    fun clearWidgetState(context: Context, widgetId: Int) {
+        prefs(context).edit()
+            .remove("widget_day_$widgetId")
+            .remove("widget_win_start_$widgetId")
+            .apply()
+    }
+
+    fun evaluateOutageChangesAndSaveBaseline(
+        context: Context,
+        providerId: String,
+        group: String,
+        todayDateLabel: String,
+        todayJson: String,
+        tomorrowDateLabel: String,
+        tomorrowJson: String
+    ): OutageChangeResult {
+        val todaySlots = parseSlotsJson(todayJson)
+        val tomorrowSlots = parseSlotsJson(tomorrowJson)
+        val todaySig = slotsSignature(todaySlots)
+        val tomorrowSig = slotsSignature(tomorrowSlots)
+
+        val p = prefs(context)
+        val currentConfigKey = "$providerId|$group"
+        val prevConfigKey = p.getString(KEY_OUTAGE_BASELINE_KEY, "")
+        val datesJsonStr = if (prevConfigKey == currentConfigKey) {
+            p.getString(KEY_OUTAGE_BASELINE_DATES, "{}") ?: "{}"
+        } else {
+            "{}"
+        }
+
+        val datesMap = try {
+            JSONObject(datesJsonStr)
+        } catch (_: Exception) {
+            JSONObject()
+        }
+
+        val isFirstBaseline = prevConfigKey != currentConfigKey || datesMap.length() == 0
+
+        var todayChanged = false
+        var tomorrowAppeared = false
+        var tomorrowChanged = false
+
+        if (!isFirstBaseline) {
+            if (todayDateLabel.isNotEmpty() && datesMap.has(todayDateLabel)) {
+                val prevTodaySig = datesMap.optString(todayDateLabel, "")
+                if (prevTodaySig != todaySig) {
+                    todayChanged = true
+                }
+            }
+            if (tomorrowDateLabel.isNotEmpty() && tomorrowSlots.isNotEmpty()) {
+                if (!datesMap.has(tomorrowDateLabel)) {
+                    tomorrowAppeared = true
+                } else {
+                    val prevTomorrowSig = datesMap.optString(tomorrowDateLabel, "")
+                    if (prevTomorrowSig != tomorrowSig) {
+                        tomorrowChanged = true
+                    }
+                }
+            }
+        }
+
+        if (todayDateLabel.isNotEmpty()) {
+            datesMap.put(todayDateLabel, todaySig)
+        }
+        if (tomorrowDateLabel.isNotEmpty() && tomorrowSlots.isNotEmpty()) {
+            datesMap.put(tomorrowDateLabel, tomorrowSig)
+        }
+
+        // Keep map compact (latest 5 dates)
+        val keys = mutableListOf<String>()
+        val iter = datesMap.keys()
+        while (iter.hasNext()) keys.add(iter.next())
+        if (keys.size > 5) {
+            val toKeep = keys.takeLast(5).toSet()
+            for (k in keys) {
+                if (!toKeep.contains(k)) datesMap.remove(k)
+            }
+        }
+
+        p.edit()
+            .putString(KEY_OUTAGE_BASELINE_KEY, currentConfigKey)
+            .putString(KEY_OUTAGE_BASELINE_DATES, datesMap.toString())
+            .apply()
+
+        return OutageChangeResult(
+            todayChanged = todayChanged,
+            tomorrowAppeared = tomorrowAppeared,
+            tomorrowChanged = tomorrowChanged,
+            todaySlots = todaySlots,
+            tomorrowSlots = tomorrowSlots
+        )
+    }
+
+    private fun slotsSignature(slots: List<OutageSlotData>): String {
+        if (slots.isEmpty()) return "NONE"
+        return slots.joinToString(",") { "${it.start}-${it.end}" }
+    }
+
+    fun parseSlotsJson(jsonStr: String): List<OutageSlotData> {
         return try {
             val arr = JSONArray(jsonStr)
             buildList {
@@ -204,8 +346,17 @@ object MarstekStore {
         }
     }
 
+    fun toDayBlocks(slots: List<OutageSlotData>): List<OutageBlockRatio> {
+        return slots.mapNotNull { slot ->
+            val s = timeToMinutes(slot.start)
+            val e = timeToMinutes(slot.end)
+            if (e > s) {
+                OutageBlockRatio(leftRatio = s / 1440f, widthRatio = (e - s) / 1440f)
+            } else null
+        }
+    }
+
     fun computeNetBatteryPower(pvPower: Int, onGridPower: Int, offGridPower: Int): Int {
-        // Marstek ES.GetStatus: ongrid_power < 0 = charging from grid, > 0 = discharging to grid
         return pvPower - onGridPower - offGridPower
     }
 
@@ -214,6 +365,30 @@ object MarstekStore {
             netBatteryPower > 25 -> BatteryMode.CHARGING
             netBatteryPower < -25 -> BatteryMode.DISCHARGING
             else -> BatteryMode.IDLE
+        }
+    }
+
+    fun getTemperatureVisuals(batTemp: Float?): TemperatureVisuals {
+        if (batTemp == null || batTemp.isNaN()) {
+            return TemperatureVisuals("--°C", 0xFF8FA3B8.toInt())
+        }
+        val rounded = batTemp.roundToInt()
+        return when {
+            batTemp < 10f -> TemperatureVisuals("${rounded}°C", 0xFF5AB0FF.toInt())
+            batTemp <= 35f -> TemperatureVisuals("${rounded}°C", 0xFF3DDC84.toInt())
+            batTemp <= 42f -> TemperatureVisuals("${rounded}°C", 0xFFFFC24D.toInt())
+            else -> TemperatureVisuals("${rounded}°C", 0xFFF44336.toInt())
+        }
+    }
+
+    fun formatAbsPowerUk(netBatteryPower: Int): String {
+        val absW = abs(netBatteryPower)
+        if (absW <= 25) return "0 Вт"
+        return if (absW >= 1000) {
+            val kw = "%.1f".format(absW / 1000.0).replace('.', ',')
+            "$kw кВт"
+        } else {
+            "$absW Вт"
         }
     }
 
@@ -233,8 +408,16 @@ object MarstekStore {
         val clamped = max(0, totalMinutes.roundToInt())
         val hours = clamped / 60
         val mins = clamped % 60
-        val minsStr = if (hours > 0) "%02d".format(mins) else mins.toString()
-        return "$hours год $minsStr хв"
+        if (hours == 0) return "$mins хв"
+        return "$hours год ${"%02d".format(mins)} хв"
+    }
+
+    fun formatCompactDurationUk(totalMinutes: Double): String {
+        val clamped = max(0, totalMinutes.roundToInt())
+        val hours = clamped / 60
+        val mins = clamped % 60
+        if (hours == 0) return "${mins}хв"
+        return "${hours}г ${"%02d".format(mins)}хв"
     }
 
     fun computeEnergyDurations(
@@ -253,15 +436,18 @@ object MarstekStore {
             val toFullPct = max(0, 100 - clampedSoc)
             val minsToFull = ((toFullPct / 100.0) * capacityWh) / powerW * 60.0
             val primaryValue = if (clampedSoc >= 100) "Заряджено" else formatDurationUk(minsToFull)
+            val compactPrimary = if (clampedSoc >= 100) "100%" else formatCompactDurationUk(minsToFull)
 
             return EnergyDurationsUi(
                 mode = mode,
                 cardTitle = "До повного заряду",
                 leftLabel = "До 100%",
-                rightLabel = "Залишилось зарядити",
+                rightLabel = "Залишилось",
                 primaryValueText = primaryValue,
+                compactPrimaryValueText = compactPrimary,
                 secondaryValueText = "$remainingWh Вт·год",
-                compactSubText = "до 100% · ${formatPowerUk(netBatteryPower)}"
+                compactSubText = "до 100% · $remainingWh Вт·год",
+                dischargeMinutesLeft = null
             )
         }
 
@@ -269,15 +455,18 @@ object MarstekStore {
             val powerW = max(1, abs(netBatteryPower)).toDouble()
             val minsToZero = ((clampedSoc / 100.0) * capacityWh) / powerW * 60.0
             val primaryValue = if (clampedSoc <= 0) "Розряджено" else formatDurationUk(minsToZero)
+            val compactPrimary = if (clampedSoc <= 0) "0%" else formatCompactDurationUk(minsToZero)
 
             return EnergyDurationsUi(
                 mode = mode,
                 cardTitle = "До розряду",
                 leftLabel = "До 0%",
-                rightLabel = "Залишок енергії",
+                rightLabel = "Залишок",
                 primaryValueText = primaryValue,
+                compactPrimaryValueText = compactPrimary,
                 secondaryValueText = "$availableWh Вт·год",
-                compactSubText = "до 0% · ${formatPowerUk(netBatteryPower)}"
+                compactSubText = "до 0% · $availableWh Вт·год",
+                dischargeMinutesLeft = minsToZero
             )
         }
 
@@ -285,10 +474,12 @@ object MarstekStore {
             mode = mode,
             cardTitle = "Стан батареї",
             leftLabel = "Запас енергії",
-            rightLabel = "Ємність батареї",
+            rightLabel = "Ємність",
             primaryValueText = "$availableWh Вт·год",
+            compactPrimaryValueText = "$availableWh Вт·г",
             secondaryValueText = "$capacityWh Вт·год",
-            compactSubText = "ємність $capacityWh Вт·год"
+            compactSubText = "ємність $capacityWh Вт·год",
+            dischargeMinutesLeft = null
         )
     }
 
@@ -329,38 +520,70 @@ object MarstekStore {
         val nowRatio = clampedNow / 1440f
 
         val current = sorted.firstOrNull { clampedNow in it.startMin until it.endMin }
-        if (current != null) {
-            val dur = formatDurationUk((current.endMin - clampedNow).toDouble())
-            return OutageSummaryUi(
-                rangeText = "${current.start} – ${current.end}",
-                countdownText = "Відключення зараз · світло через $dur",
-                compactCountdownText = "Світло увімкнуть через $dur",
-                nowRatio = nowRatio,
-                blocks = blocks
+        val next = if (current == null) sorted.firstOrNull { it.startMin > clampedNow } else null
+        val highlightSlot = current ?: next
+
+        val chips = sorted.map {
+            OutageChipUi(
+                label = "${it.start}–${it.end}",
+                isHighlight = highlightSlot != null &&
+                    it.startMin == highlightSlot.startMin &&
+                    it.endMin == highlightSlot.endMin
             )
         }
 
-        val next = sorted.firstOrNull { it.startMin > clampedNow }
+        if (current != null) {
+            val remainingMin = (current.endMin - clampedNow).toDouble()
+            val dur = formatDurationUk(remainingMin)
+            val compactDur = formatCompactDurationUk(remainingMin)
+            return OutageSummaryUi(
+                rangeText = "${current.start} – ${current.end}",
+                countdownText = "Світло о ${current.end} (через $dur)",
+                compactCountdownText = "Світло о ${current.end} · $compactDur",
+                shortActionText = "о ${current.end} ($compactDur)",
+                microTimeText = current.end,
+                isActiveNow = true,
+                nowRatio = nowRatio,
+                blocks = blocks,
+                todaySlotChips = chips,
+                targetOutageMinutes = remainingMin
+            )
+        }
+
         if (next != null) {
-            val dur = formatDurationUk((next.startMin - clampedNow).toDouble())
+            val untilMin = (next.startMin - clampedNow).toDouble()
+            val dur = formatDurationUk(untilMin)
+            val compactDur = formatCompactDurationUk(untilMin)
             return OutageSummaryUi(
                 rangeText = "${next.start} – ${next.end}",
-                countdownText = "Наступне відключення через $dur",
-                compactCountdownText = "Світло вимкнуть через $dur",
+                countdownText = "Вимкнення о ${next.start} (через $dur)",
+                compactCountdownText = "Вимкн. о ${next.start} · $compactDur",
+                shortActionText = "о ${next.start} ($compactDur)",
+                microTimeText = next.start,
+                isActiveNow = false,
                 nowRatio = nowRatio,
-                blocks = blocks
+                blocks = blocks,
+                todaySlotChips = chips,
+                targetOutageMinutes = (next.endMin - next.startMin).toDouble()
             )
         }
 
         val firstTomorrow = sortedTomorrow.firstOrNull()
         if (firstTomorrow != null) {
-            val dur = formatDurationUk((1440 - clampedNow + firstTomorrow.startMin).toDouble())
+            val untilTomorrow = (1440 - clampedNow + firstTomorrow.startMin).toDouble()
+            val dur = formatDurationUk(untilTomorrow)
+            val compactDur = formatCompactDurationUk(untilTomorrow)
             return OutageSummaryUi(
                 rangeText = "${firstTomorrow.start} – ${firstTomorrow.end}",
-                countdownText = "Завтра · через $dur",
-                compactCountdownText = "Завтра о ${firstTomorrow.start}",
+                countdownText = "Завтра о ${firstTomorrow.start} (через $dur)",
+                compactCountdownText = "Завтра о ${firstTomorrow.start} · $compactDur",
+                shortActionText = "завтра ${firstTomorrow.start}",
+                microTimeText = firstTomorrow.start,
+                isActiveNow = false,
                 nowRatio = nowRatio,
-                blocks = blocks
+                blocks = blocks,
+                todaySlotChips = chips,
+                targetOutageMinutes = (firstTomorrow.endMin - firstTomorrow.startMin).toDouble()
             )
         }
 
@@ -368,9 +591,14 @@ object MarstekStore {
             return OutageSummaryUi(
                 rangeText = "Без відключень",
                 countdownText = "На сьогодні відключень більше немає",
-                compactCountdownText = "На сьогодні відключень немає",
+                compactCountdownText = "Світло до кінця доби",
+                shortActionText = "до кінця доби",
+                microTimeText = "Світло",
+                isActiveNow = false,
                 nowRatio = nowRatio,
-                blocks = blocks
+                blocks = blocks,
+                todaySlotChips = chips,
+                targetOutageMinutes = null
             )
         }
 
@@ -378,8 +606,13 @@ object MarstekStore {
             rangeText = "Немає відключень",
             countdownText = "На сьогодні відключень не заплановано",
             compactCountdownText = "Без відключень сьогодні",
+            shortActionText = "світло є",
+            microTimeText = "Без в.",
+            isActiveNow = false,
             nowRatio = nowRatio,
-            blocks = blocks
+            blocks = blocks,
+            todaySlotChips = chips,
+            targetOutageMinutes = null
         )
     }
 
@@ -389,6 +622,7 @@ object MarstekStore {
             put("port", config.port)
             put("providerId", config.providerId)
             put("group", config.group)
+            put("notifyOutages", config.notifyOutages)
         }.toString()
     }
 }

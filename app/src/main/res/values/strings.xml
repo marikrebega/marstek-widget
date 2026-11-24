@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Marstek Venus Widget</string>
-    <string name="widget_full_label">Marstek (Повний)</string>
-    <string name="widget_compact_label">Marstek (Компактний)</string>
+    <string name="widget_full_label">Marstek (Повний 4×3 / 5×3)</string>
+    <string name="widget_compact_label">Marstek (Компактний 4×2 / Смужка)</string>
+    <string name="widget_mini_label">Marstek (Міні 2×2 / 1×1)</string>
 </resources>

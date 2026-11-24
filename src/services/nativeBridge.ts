@@ -10,9 +10,12 @@ interface MarstekNativeInterface {
     ip: string,
     port: number,
     providerId: string,
-    group: string
+    group: string,
+    notifyOutages?: boolean
   ) => void;
   loadConfig?: () => string;
+  requestNotificationPermission?: () => boolean;
+  sendTestOutageNotification?: () => boolean;
 }
 
 interface PendingCallback {
@@ -53,15 +56,30 @@ export function syncConfigToNativeAndroid(params: {
   port: number;
   providerId: string;
   group: string;
+  notifyOutages: boolean;
 }): void {
   if (typeof window !== 'undefined' && window.MarstekNative?.saveConfig) {
     window.MarstekNative.saveConfig(
       params.ip,
       params.port,
       params.providerId,
-      params.group
+      params.group,
+      params.notifyOutages
     );
   }
+}
+
+export function requestNativeNotificationPermission(): void {
+  if (typeof window !== 'undefined' && window.MarstekNative?.requestNotificationPermission) {
+    window.MarstekNative.requestNotificationPermission();
+  }
+}
+
+export function sendNativeTestNotification(): boolean {
+  if (typeof window !== 'undefined' && window.MarstekNative?.sendTestOutageNotification) {
+    return window.MarstekNative.sendTestOutageNotification();
+  }
+  return false;
 }
 
 export function callNativeQueryStatus(ip: string, port: number): Promise<string> {

@@ -6,68 +6,132 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.os.PowerManager
+import android.view.View
 import android.widget.RemoteViews
 import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.min
 
 object MarstekWidgetUpdater {
 
     const val ACTION_REFRESH = "com.marstek.widget.ACTION_REFRESH"
+    const val ACTION_WINDOW_PREV = "com.marstek.widget.ACTION_WINDOW_PREV"
+    const val ACTION_WINDOW_NEXT = "com.marstek.widget.ACTION_WINDOW_NEXT"
+    const val ACTION_DAY_TODAY = "com.marstek.widget.ACTION_DAY_TODAY"
+    const val ACTION_DAY_TOMORROW = "com.marstek.widget.ACTION_DAY_TOMORROW"
+    const val ACTION_TOGGLE_DAY = "com.marstek.widget.ACTION_TOGGLE_DAY"
+
     private val executor = Executors.newSingleThreadExecutor()
+
+    private enum class DefaultTier {
+        MINI, COMPACT, FULL
+    }
+
+    private data class GridSpec(
+        val cols: Int,
+        val rows: Int
+    ) {
+        val is1x1: Boolean get() = cols == 1
+        val is2x2: Boolean get() = cols == 2
+        val stepHours: Int get() = if (cols >= 4) 1 else 2
+    }
 
     fun updateAllFromCache(context: Context, isUpdating: Boolean = false) {
         val appContext = context.applicationContext
         val manager = AppWidgetManager.getInstance(appContext)
 
-        val fullIds = manager.getAppWidgetIds(
-            ComponentName(appContext, MarstekFullWidgetProvider::class.java)
-        )
-        if (fullIds.isNotEmpty()) {
-            val fullViews = buildFullRemoteViews(appContext, isUpdating)
-            manager.updateAppWidget(fullIds, fullViews)
-        }
+        updateProviderWidgets(appContext, manager, MarstekFullWidgetProvider::class.java, DefaultTier.FULL, isUpdating)
+        updateProviderWidgets(appContext, manager, MarstekCompactWidgetProvider::class.java, DefaultTier.COMPACT, isUpdating)
+        updateProviderWidgets(appContext, manager, MarstekMiniWidgetProvider::class.java, DefaultTier.MINI, isUpdating)
+    }
 
-        val compactIds = manager.getAppWidgetIds(
-            ComponentName(appContext, MarstekCompactWidgetProvider::class.java)
-        )
-        if (compactIds.isNotEmpty()) {
-            val compactViews = buildCompactRemoteViews(appContext)
-            manager.updateAppWidget(compactIds, compactViews)
+    fun updateSingleWidgetFromCache(
+        context: Context,
+        providerClass: Class<*>,
+        widgetId: Int
+    ) {
+        val appContext = context.applicationContext
+        val manager = AppWidgetManager.getInstance(appContext)
+        val tier = when (providerClass) {
+            MarstekFullWidgetProvider::class.java -> DefaultTier.FULL
+            MarstekMiniWidgetProvider::class.java -> DefaultTier.MINI
+            else -> DefaultTier.COMPACT
+        }
+        val options = manager.getAppWidgetOptions(widgetId)
+        val views = buildAdaptiveRemoteViews(appContext, providerClass, widgetId, options, tier, isUpdating = false)
+        manager.updateAppWidget(widgetId, views)
+    }
+
+    private fun updateProviderWidgets(
+        context: Context,
+        manager: AppWidgetManager,
+        providerClass: Class<*>,
+        defaultTier: DefaultTier,
+        isUpdating: Boolean
+    ) {
+        val ids = manager.getAppWidgetIds(ComponentName(context, providerClass))
+        for (id in ids) {
+            val options = manager.getAppWidgetOptions(id)
+            val views = buildAdaptiveRemoteViews(context, providerClass, id, options, defaultTier, isUpdating)
+            manager.updateAppWidget(id, views)
         }
     }
 
-    fun refreshAsync(context: Context, pendingResult: BroadcastReceiver.PendingResult? = null) {
+    fun refreshAsync(
+        context: Context,
+        pendingResult: BroadcastReceiver.PendingResult? = null,
+        isUserInitiated: Boolean = false
+    ) {
         val appContext = context.applicationContext
-        try {
-            updateAllFromCache(appContext, isUpdating = true)
-        } catch (_: Exception) {
+        val pm = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val isScreenActive = pm?.isInteractive ?: true
+
+        if (isUserInitiated || isScreenActive) {
+            try {
+                updateAllFromCache(appContext, isUpdating = true)
+            } catch (_: Exception) {
+            }
         }
 
         executor.execute {
             try {
                 val config = MarstekStore.loadConfig(appContext)
 
-                val udpOutcome = MarstekClient.queryMarstekStatus(
-                    ip = config.ip,
-                    port = config.port,
-                    includeOptionalDetails = false
-                )
-                if (udpOutcome.status != null) {
-                    MarstekStore.saveStatus(appContext, udpOutcome.status)
-                } else {
-                    MarstekStore.markStatusError(appContext)
-                }
-
-                try {
-                    val outageOutcome = MarstekClient.fetchOutages(config.providerId, config.group)
-                    MarstekStore.saveOutagesJson(
-                        appContext,
-                        outageOutcome.todayJson,
-                        outageOutcome.tomorrowJson
+                // Query Marstek UDP when user tapped refresh OR screen is active (saves battery when sleeping)
+                if (isUserInitiated || isScreenActive) {
+                    val udpOutcome = MarstekClient.queryMarstekStatus(
+                        ip = config.ip,
+                        port = config.port,
+                        includeOptionalDetails = true
                     )
-                } catch (_: Exception) {
+                    if (udpOutcome.status != null) {
+                        MarstekStore.saveStatus(appContext, udpOutcome.status)
+                    } else {
+                        MarstekStore.markStatusError(appContext)
+                    }
                 }
 
-                updateAllFromCache(appContext, isUpdating = false)
+                // Fetch outage schedule when screen is active, user-initiated, or notifications enabled
+                var outagesChanged = false
+                if (isUserInitiated || isScreenActive || config.notifyOutages) {
+                    try {
+                        val outageOutcome = MarstekClient.fetchOutages(config.providerId, config.group)
+                        MarstekStore.saveOutagesJson(
+                            appContext,
+                            outageOutcome.todayJson,
+                            outageOutcome.tomorrowJson
+                        )
+                        outagesChanged = OutageNotifier.processOutageUpdate(appContext, config, outageOutcome)
+                    } catch (_: Exception) {
+                    }
+                }
+
+                if (isUserInitiated || isScreenActive || outagesChanged) {
+                    updateAllFromCache(appContext, isUpdating = false)
+                }
             } catch (_: Exception) {
             } finally {
                 try {
@@ -78,170 +142,507 @@ object MarstekWidgetUpdater {
         }
     }
 
-    private fun openAppPendingIntent(context: Context, requestCode: Int): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        return PendingIntent.getActivity(
-            context,
-            requestCode,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
-
-    private fun refreshPendingIntent(
+    fun handleActionBroadcast(
         context: Context,
         providerClass: Class<*>,
-        requestCode: Int
-    ): PendingIntent {
-        val intent = Intent(context, providerClass).apply {
-            action = ACTION_REFRESH
+        intent: Intent,
+        pendingResult: BroadcastReceiver.PendingResult?
+    ): Boolean {
+        val action = intent.action ?: return false
+        val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+
+        when (action) {
+            ACTION_REFRESH -> {
+                refreshAsync(context, pendingResult, isUserInitiated = true)
+                return true
+            }
+            ACTION_WINDOW_PREV, ACTION_WINDOW_NEXT -> {
+                if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val (_, tomorrowSlots) = MarstekStore.loadCachedOutages(context)
+                    val hasTomorrow = tomorrowSlots.isNotEmpty()
+                    val nowHour = MarstekStore.getKyivMinutesNow() / 60
+                    val maxStart = if (hasTomorrow) 36 else 12
+                    val savedStart = MarstekStore.getWidgetWindowStartHour(context, widgetId)
+                    val currentStart = if (savedStart >= 0) savedStart.coerceIn(0, maxStart) else (nowHour - 3).coerceIn(0, 12)
+                    val delta = if (action == ACTION_WINDOW_PREV) -6 else 6
+                    val nextStart = (currentStart + delta).coerceIn(0, maxStart)
+                    MarstekStore.setWidgetWindowStartHour(context, widgetId, nextStart)
+                    if (hasTomorrow) {
+                        MarstekStore.setWidgetDay(context, widgetId, if (nextStart >= 24) "tomorrow" else "today")
+                    } else {
+                        MarstekStore.setWidgetDay(context, widgetId, "today")
+                    }
+                    updateSingleWidgetFromCache(context, providerClass, widgetId)
+                }
+                pendingResult?.finish()
+                return true
+            }
+            ACTION_DAY_TODAY -> {
+                if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    MarstekStore.setWidgetDay(context, widgetId, "today")
+                    MarstekStore.setWidgetWindowStartHour(context, widgetId, -1)
+                    updateSingleWidgetFromCache(context, providerClass, widgetId)
+                }
+                pendingResult?.finish()
+                return true
+            }
+            ACTION_DAY_TOMORROW -> {
+                if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val (_, tomorrowSlots) = MarstekStore.loadCachedOutages(context)
+                    if (tomorrowSlots.isNotEmpty()) {
+                        MarstekStore.setWidgetDay(context, widgetId, "tomorrow")
+                        MarstekStore.setWidgetWindowStartHour(context, widgetId, 24)
+                        updateSingleWidgetFromCache(context, providerClass, widgetId)
+                    }
+                }
+                pendingResult?.finish()
+                return true
+            }
+            ACTION_TOGGLE_DAY -> {
+                if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val (_, tomorrowSlots) = MarstekStore.loadCachedOutages(context)
+                    if (tomorrowSlots.isNotEmpty()) {
+                        val currentDay = MarstekStore.getWidgetDay(context, widgetId)
+                        if (currentDay == "tomorrow") {
+                            MarstekStore.setWidgetDay(context, widgetId, "today")
+                            MarstekStore.setWidgetWindowStartHour(context, widgetId, -1)
+                        } else {
+                            MarstekStore.setWidgetDay(context, widgetId, "tomorrow")
+                            MarstekStore.setWidgetWindowStartHour(context, widgetId, 24)
+                        }
+                        updateSingleWidgetFromCache(context, providerClass, widgetId)
+                    }
+                }
+                pendingResult?.finish()
+                return true
+            }
+            else -> return false
         }
-        return PendingIntent.getBroadcast(
-            context,
-            requestCode,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
     }
 
-    private fun buildFullRemoteViews(context: Context, isUpdating: Boolean): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.widget_marstek_full)
+    private fun resolveGridSpec(options: Bundle?, defaultTier: DefaultTier): GridSpec {
+        val minW = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
+        val minH = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
+
+        if (minW <= 0 || minH <= 0) {
+            return when (defaultTier) {
+                DefaultTier.MINI -> GridSpec(2, 2)
+                DefaultTier.COMPACT -> GridSpec(4, 2)
+                DefaultTier.FULL -> GridSpec(4, 3)
+            }
+        }
+
+        val cols = when {
+            minW < 105 -> 1
+            minW < 170 -> 2
+            minW < 235 -> 3
+            minW < 295 -> 4
+            else -> 5
+        }
+        val rows = when {
+            minH < 95 -> 1
+            minH < 180 -> 2
+            else -> 3
+        }
+
+        return when {
+            cols == 1 -> GridSpec(1, 1)
+            cols == 2 && rows == 1 -> GridSpec(1, 1)
+            cols == 2 -> GridSpec(2, 2)
+            else -> GridSpec(cols, rows)
+        }
+    }
+
+    private fun buildAdaptiveRemoteViews(
+        context: Context,
+        providerClass: Class<*>,
+        widgetId: Int,
+        options: Bundle?,
+        defaultTier: DefaultTier,
+        isUpdating: Boolean
+    ): RemoteViews {
+        val spec = resolveGridSpec(options, defaultTier)
         val config = MarstekStore.loadConfig(context)
         val cached = MarstekStore.loadCachedStatus(context)
         val (todaySlots, tomorrowSlots) = MarstekStore.loadCachedOutages(context)
 
         val hasSoc = cached.soc >= 0
         val clampedSoc = if (hasSoc) cached.soc.coerceIn(0, 100) else 0
-        val netPower = MarstekStore.computeNetBatteryPower(
-            cached.pvPower,
-            cached.onGridPower,
-            cached.offGridPower
-        )
-        val durations = MarstekStore.computeEnergyDurations(
-            soc = clampedSoc,
-            batCapWh = cached.batCap,
-            netBatteryPower = netPower
-        )
+        val netPower = MarstekStore.computeNetBatteryPower(cached.pvPower, cached.onGridPower, cached.offGridPower)
+        val durations = MarstekStore.computeEnergyDurations(clampedSoc, cached.batCap, netPower)
         val mode = durations.mode
-        val outage = MarstekStore.evaluateOutageSchedule(
-            todaySlots = todaySlots,
-            nowMinutes = MarstekStore.getKyivMinutesNow(),
-            tomorrowSlots = tomorrowSlots
-        )
+        val tempVisuals = MarstekStore.getTemperatureVisuals(cached.batTemp)
+        val nowMinutes = MarstekStore.getKyivMinutesNow()
+        val outage = MarstekStore.evaluateOutageSchedule(todaySlots, nowMinutes, tomorrowSlots)
+        val absWattsText = if (hasSoc) MarstekStore.formatAbsPowerUk(netPower) else "-- Вт"
 
-        val headerTitle = when {
-            isUpdating -> "Marstek · Оновлення..."
-            cached.isError -> "Marstek · Офлайн"
-            else -> "Marstek"
+        val hasTomorrow = tomorrowSlots.isNotEmpty()
+        val rawDay = MarstekStore.getWidgetDay(context, widgetId)
+        val isTomorrowView = hasTomorrow && rawDay == "tomorrow"
+        val nowHour = nowMinutes / 60
+        val maxStart = if (hasTomorrow) 36 else 12
+        val savedStart = MarstekStore.getWidgetWindowStartHour(context, widgetId)
+        val windowStartHour = if (savedStart >= 0) {
+            savedStart.coerceIn(0, maxStart)
+        } else {
+            (nowHour - 3).coerceIn(0, 12)
         }
-        views.setTextViewText(R.id.fullHeaderTitle, headerTitle)
 
-        val (badgeBg, badgeIcon) = when (mode) {
-            BatteryMode.CHARGING -> R.drawable.badge_charging to R.drawable.ic_mode_charging
-            BatteryMode.DISCHARGING -> R.drawable.badge_discharging to R.drawable.ic_mode_discharging
-            BatteryMode.IDLE -> R.drawable.badge_idle to R.drawable.ic_mode_idle
-        }
-        views.setInt(R.id.fullModeBadge, "setBackgroundResource", badgeBg)
-        views.setImageViewResource(R.id.fullModeIcon, badgeIcon)
-        views.setTextViewText(R.id.fullModeLabel, mode.labelUk)
-        views.setTextColor(R.id.fullModeLabel, mode.colorInt)
-
-        val gaugeBitmap = WidgetGraphics.renderGaugeBitmap(
-            soc = clampedSoc,
-            hasSoc = hasSoc,
-            mode = mode,
-            sizePx = 240,
-            strokeWidthRatio = 0.07f
-        )
-        views.setImageViewBitmap(R.id.fullGaugeImage, gaugeBitmap)
-        views.setTextViewText(R.id.fullSocText, if (hasSoc) "$clampedSoc%" else "--%")
-        views.setTextViewText(
-            R.id.fullPowerText,
-            if (hasSoc) MarstekStore.formatPowerUk(netPower) else "-- Вт"
-        )
-
-        views.setTextViewText(R.id.fullCardTitle, durations.cardTitle)
-        views.setTextViewText(R.id.fullLeftLabel, durations.leftLabel)
-        views.setTextViewText(R.id.fullPrimaryValue, durations.primaryValueText)
-        views.setTextViewText(R.id.fullRightLabel, durations.rightLabel)
-        views.setTextViewText(R.id.fullSecondaryValue, durations.secondaryValueText)
-
-        views.setTextViewText(R.id.fullOutageGroup, "Черга ${config.group} · Сьогодні")
-        views.setTextViewText(R.id.fullOutageRange, outage.rangeText)
-        views.setTextViewText(R.id.fullOutageCountdown, outage.countdownText)
-
-        val barBitmap = WidgetGraphics.renderOutageBarBitmap(
-            blocks = outage.blocks,
-            nowRatio = outage.nowRatio,
-            widthPx = 480,
-            heightPx = 24
-        )
-        views.setImageViewBitmap(R.id.fullOutageBarImage, barBitmap)
-
-        val openPi = openAppPendingIntent(context, 101)
-        val refreshPi = refreshPendingIntent(context, MarstekFullWidgetProvider::class.java, 102)
-        views.setOnClickPendingIntent(R.id.fullHeaderTitle, openPi)
-        views.setOnClickPendingIntent(R.id.fullModeBadge, refreshPi)
-        views.setOnClickPendingIntent(R.id.fullGaugeContainer, refreshPi)
-
-        return views
-    }
-
-    private fun buildCompactRemoteViews(context: Context): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.widget_marstek_compact)
-        val cached = MarstekStore.loadCachedStatus(context)
-        val (todaySlots, tomorrowSlots) = MarstekStore.loadCachedOutages(context)
-
-        val hasSoc = cached.soc >= 0
-        val clampedSoc = if (hasSoc) cached.soc.coerceIn(0, 100) else 0
-        val netPower = MarstekStore.computeNetBatteryPower(
-            cached.pvPower,
-            cached.onGridPower,
-            cached.offGridPower
-        )
-        val durations = MarstekStore.computeEnergyDurations(
-            soc = clampedSoc,
-            batCapWh = cached.batCap,
-            netBatteryPower = netPower
-        )
-        val mode = durations.mode
-        val outage = MarstekStore.evaluateOutageSchedule(
-            todaySlots = todaySlots,
-            nowMinutes = MarstekStore.getKyivMinutesNow(),
-            tomorrowSlots = tomorrowSlots
-        )
-
-        val gaugeBitmap = WidgetGraphics.renderGaugeBitmap(
-            soc = clampedSoc,
-            hasSoc = hasSoc,
-            mode = mode,
-            sizePx = 160,
-            strokeWidthRatio = 0.09f
-        )
-        views.setImageViewBitmap(R.id.compactGaugeImage, gaugeBitmap)
-        views.setTextViewText(R.id.compactSocText, if (hasSoc) "$clampedSoc%" else "--%")
-
-        val modeIcon = when (mode) {
+        val modeIconRes = when (mode) {
             BatteryMode.CHARGING -> R.drawable.ic_mode_charging
             BatteryMode.DISCHARGING -> R.drawable.ic_mode_discharging
             BatteryMode.IDLE -> R.drawable.ic_mode_idle
         }
-        views.setImageViewResource(R.id.compactModeIcon, modeIcon)
-        views.setTextViewText(R.id.compactModeLabel, mode.labelUk)
-        views.setTextColor(R.id.compactModeLabel, mode.colorInt)
 
-        views.setTextViewText(R.id.compactPrimaryDuration, durations.primaryValueText)
-        views.setTextViewText(R.id.compactSubDuration, durations.compactSubText)
-        views.setTextViewText(R.id.compactOutageCountdown, outage.compactCountdownText)
-        views.setTextViewText(R.id.compactOutageRange, outage.rangeText)
+        val openPi = openAppPendingIntent(context, widgetId)
+        val refreshPi = actionPendingIntent(context, providerClass, ACTION_REFRESH, widgetId)
 
-        val openPi = openAppPendingIntent(context, 201)
-        val refreshPi = refreshPendingIntent(context, MarstekCompactWidgetProvider::class.java, 202)
-        views.setOnClickPendingIntent(R.id.compactGaugeContainer, openPi)
-        views.setOnClickPendingIntent(R.id.compactInfoContainer, refreshPi)
+        // 1x1 Micro Square
+        if (spec.is1x1) {
+            val views = RemoteViews(context.packageName, R.layout.widget_marstek_1x1)
+            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 160, 0.11f)
+            views.setImageViewBitmap(R.id.miniGaugeImage, gauge)
+            views.setTextViewText(R.id.miniSocText, if (hasSoc) "$clampedSoc" else "--")
+            views.setImageViewResource(
+                R.id.miniStatusDot,
+                if (outage.isActiveNow) R.drawable.dot_amber else R.drawable.dot_green
+            )
+            views.setTextViewText(R.id.miniTimeText, outage.microTimeText)
+            views.setOnClickPendingIntent(R.id.widgetRoot, refreshPi)
+            return views
+        }
+
+        // 2x2 Mini Modular Tiles
+        if (spec.is2x2) {
+            val views = RemoteViews(context.packageName, R.layout.widget_marstek_2x2)
+            views.setImageViewResource(R.id.mini2ModeIcon, modeIconRes)
+            views.setTextViewText(R.id.mini2WattsText, absWattsText)
+            views.setTextColor(R.id.mini2WattsText, mode.colorInt)
+
+            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 144, 0.11f)
+            views.setImageViewBitmap(R.id.mini2GaugeImage, gauge)
+            views.setTextViewText(R.id.mini2SocText, if (hasSoc) "$clampedSoc" else "--")
+            views.setTextViewText(R.id.mini2DurationText, durations.compactPrimaryValueText)
+            views.setTextViewText(R.id.mini2TempText, tempVisuals.label)
+            views.setTextColor(R.id.mini2TempText, tempVisuals.colorInt)
+
+            views.setTextViewText(R.id.mini2OutageRange, outage.rangeText)
+            views.setTextViewText(R.id.mini2OutageCountdown, outage.compactCountdownText)
+
+            views.setOnClickPendingIntent(R.id.mini2RefreshBtn, refreshPi)
+            views.setOnClickPendingIntent(R.id.mini2BatteryTile, openPi)
+            views.setOnClickPendingIntent(R.id.mini2OutageTile, openPi)
+            return views
+        }
+
+        // 1-Row Horizontal Strips (3x1, 4x1, 5x1)
+        if (spec.rows == 1) {
+            val views = RemoteViews(context.packageName, R.layout.widget_marstek_strip)
+            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 136, 0.11f)
+            views.setImageViewBitmap(R.id.stripGaugeImage, gauge)
+            views.setTextViewText(R.id.stripSocText, if (hasSoc) "$clampedSoc" else "--")
+
+            views.setImageViewResource(R.id.stripModeIcon, modeIconRes)
+            if (spec.cols == 5) {
+                views.setTextViewText(R.id.stripTopMetaText, mode.labelUk)
+                views.setTextColor(R.id.stripTopMetaText, mode.colorInt)
+                views.setTextViewText(R.id.stripWattsTempText, "· $absWattsText · ${tempVisuals.label}")
+                views.setTextColor(R.id.stripWattsTempText, 0xFFC9CFD5.toInt())
+            } else {
+                views.setTextViewText(R.id.stripTopMetaText, absWattsText)
+                views.setTextColor(R.id.stripTopMetaText, mode.colorInt)
+                views.setTextViewText(R.id.stripWattsTempText, "· ${tempVisuals.label}")
+                views.setTextColor(R.id.stripWattsTempText, tempVisuals.colorInt)
+            }
+
+            val durHeadline = if (spec.cols <= 3) durations.compactPrimaryValueText else durations.primaryValueText
+            val durFull = if (spec.cols >= 4) "$durHeadline · ${durations.secondaryValueText}" else durHeadline
+            views.setTextViewText(R.id.stripDurationText, durFull)
+
+            views.setTextViewText(
+                R.id.stripOutageRange,
+                if (spec.cols == 3) outage.microTimeText else outage.rangeText
+            )
+            if (spec.cols >= 4) {
+                views.setViewVisibility(R.id.stripOutageAction, View.VISIBLE)
+                views.setTextViewText(R.id.stripOutageAction, outage.shortActionText)
+            } else {
+                views.setViewVisibility(R.id.stripOutageAction, View.GONE)
+            }
+
+            views.setOnClickPendingIntent(R.id.stripGaugeContainer, openPi)
+            views.setOnClickPendingIntent(R.id.stripInfoContainer, openPi)
+            views.setOnClickPendingIntent(R.id.stripOutagePill, openPi)
+            views.setOnClickPendingIntent(R.id.stripRefreshBtn, refreshPi)
+            return views
+        }
+
+        val todayBlocks = outage.blocks
+        val tomorrowBlocks = MarstekStore.toDayBlocks(tomorrowSlots)
+        val activeHeadline = if (isTomorrowView) {
+            tomorrowSlots.firstOrNull()?.let { "Завтра · перше ${it.start}–${it.end}" } ?: "Завтра без відключень"
+        } else if (spec.cols <= 4) {
+            outage.compactCountdownText
+        } else {
+            outage.countdownText
+        }
+
+        val prevPi = actionPendingIntent(context, providerClass, ACTION_WINDOW_PREV, widgetId)
+        val nextPi = actionPendingIntent(context, providerClass, ACTION_WINDOW_NEXT, widgetId)
+
+        // 2-Row Medium Modular Tiles (3x2, 4x2, 5x2)
+        if (spec.rows == 2) {
+            val views = RemoteViews(context.packageName, R.layout.widget_marstek_medium)
+            views.setImageViewResource(R.id.medModeIcon, modeIconRes)
+            val leftHeader = if (spec.cols >= 4) "${mode.labelUk} · $absWattsText" else absWattsText
+            views.setTextViewText(R.id.medHeaderLeftText, leftHeader)
+            views.setTextColor(R.id.medHeaderLeftText, mode.colorInt)
+            views.setTextViewText(R.id.medTempText, tempVisuals.label)
+            views.setTextColor(R.id.medTempText, tempVisuals.colorInt)
+
+            val showPct = spec.cols >= 5
+            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 176, 0.095f)
+            views.setImageViewBitmap(R.id.medGaugeImage, gauge)
+            views.setTextViewText(
+                R.id.medSocText,
+                if (hasSoc) (if (showPct) "$clampedSoc%" else "$clampedSoc") else (if (showPct) "--%" else "--")
+            )
+
+            val durHeadline = if (spec.cols <= 3) durations.compactPrimaryValueText else durations.primaryValueText
+            views.setTextViewText(R.id.medPrimaryDuration, durHeadline)
+            views.setTextViewText(R.id.medSecondaryMeta, "${durations.leftLabel} · ${durations.secondaryValueText}")
+
+            views.setTextViewText(R.id.medOutageHeadline, activeHeadline)
+            if (hasTomorrow) {
+                views.setViewVisibility(R.id.medDayToggleBtn, View.VISIBLE)
+                views.setViewVisibility(R.id.medOutageRangeText, View.GONE)
+                views.setTextViewText(R.id.medDayToggleBtn, if (isTomorrowView) "Сьогодні ◂" else "Завтра ▸")
+                views.setInt(
+                    R.id.medDayToggleBtn,
+                    "setBackgroundResource",
+                    if (isTomorrowView) R.drawable.pill_day_active else R.drawable.pill_day_inactive
+                )
+                views.setTextColor(
+                    R.id.medDayToggleBtn,
+                    if (isTomorrowView) 0xFF101316.toInt() else 0xFFA8B0B8.toInt()
+                )
+                val togglePi = actionPendingIntent(context, providerClass, ACTION_TOGGLE_DAY, widgetId)
+                views.setOnClickPendingIntent(R.id.medDayToggleBtn, togglePi)
+            } else {
+                views.setViewVisibility(R.id.medDayToggleBtn, View.GONE)
+                if (spec.cols >= 5) {
+                    views.setViewVisibility(R.id.medOutageRangeText, View.VISIBLE)
+                    views.setTextViewText(R.id.medOutageRangeText, outage.rangeText)
+                } else {
+                    views.setViewVisibility(R.id.medOutageRangeText, View.GONE)
+                }
+            }
+
+            val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
+                todayBlocks = todayBlocks,
+                tomorrowBlocks = tomorrowBlocks,
+                nowRatio = outage.nowRatio,
+                windowStartHour = windowStartHour,
+                stepHours = spec.stepHours,
+                widthPx = 680,
+                heightPx = 74
+            )
+            views.setImageViewBitmap(R.id.medOutageBarImage, barBitmap)
+
+            views.setOnClickPendingIntent(R.id.medRefreshBtn, refreshPi)
+            views.setOnClickPendingIntent(R.id.medGaugeContainer, openPi)
+            views.setOnClickPendingIntent(R.id.medInfoContainer, openPi)
+            views.setOnClickPendingIntent(R.id.medPrevWindowBtn, prevPi)
+            views.setOnClickPendingIntent(R.id.medNextWindowBtn, nextPi)
+            return views
+        }
+
+        // 3-Row Full Dashboard Modular Tiles (3x3, 4x3, 5x3)
+        val views = RemoteViews(context.packageName, R.layout.widget_marstek_full)
+        if (spec.cols == 3) {
+            views.setViewVisibility(R.id.fullLeftModeIcon, View.VISIBLE)
+            views.setImageViewResource(R.id.fullLeftModeIcon, modeIconRes)
+            views.setTextViewText(R.id.fullHeaderTitle, absWattsText)
+            views.setTextColor(R.id.fullHeaderTitle, mode.colorInt)
+            views.setViewVisibility(R.id.fullRightDot, View.GONE)
+            views.setViewVisibility(R.id.fullModeIcon, View.GONE)
+            views.setViewVisibility(R.id.fullRightWattsText, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.fullLeftModeIcon, View.GONE)
+            val statusHeader = when {
+                isUpdating -> "Marstek · Оновлення..."
+                cached.isError -> "Marstek · Кеш"
+                else -> "Marstek · ${cached.lastUpdateTime}"
+            }
+            views.setTextViewText(R.id.fullHeaderTitle, statusHeader)
+            views.setTextColor(R.id.fullHeaderTitle, 0xFFA8B0B8.toInt())
+            views.setViewVisibility(R.id.fullRightDot, View.VISIBLE)
+            views.setViewVisibility(R.id.fullModeIcon, View.VISIBLE)
+            views.setViewVisibility(R.id.fullRightWattsText, View.VISIBLE)
+            views.setImageViewResource(R.id.fullModeIcon, modeIconRes)
+            views.setTextViewText(R.id.fullRightWattsText, absWattsText)
+            views.setTextColor(R.id.fullRightWattsText, mode.colorInt)
+        }
+
+        views.setTextViewText(R.id.fullTempText, tempVisuals.label)
+        views.setTextColor(R.id.fullTempText, tempVisuals.colorInt)
+
+        val showPct = spec.cols >= 4
+        val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 220, 0.085f)
+        views.setImageViewBitmap(R.id.fullGaugeImage, gauge)
+        views.setTextViewText(
+            R.id.fullSocText,
+            if (hasSoc) (if (showPct) "$clampedSoc%" else "$clampedSoc") else (if (showPct) "--%" else "--")
+        )
+
+        views.setTextViewText(
+            R.id.fullCardTitle,
+            if (spec.cols == 3) durations.leftLabel else "${durations.cardTitle} (${durations.leftLabel})"
+        )
+        views.setTextViewText(
+            R.id.fullPrimaryValue,
+            if (spec.cols <= 3) durations.compactPrimaryValueText else durations.primaryValueText
+        )
+        views.setTextViewText(
+            R.id.fullSecondaryValue,
+            if (spec.cols == 3) durations.secondaryValueText else "${durations.rightLabel}: ${durations.secondaryValueText}"
+        )
+
+        val enoughOutage = durations.dischargeMinutesLeft != null &&
+            outage.targetOutageMinutes != null &&
+            durations.dischargeMinutesLeft >= outage.targetOutageMinutes
+        views.setViewVisibility(R.id.fullEnoughOutage, if (enoughOutage) View.VISIBLE else View.GONE)
+
+        views.setTextViewText(R.id.fullOutageHeadline, activeHeadline)
+        views.setTextViewText(
+            R.id.fullOutageGroup,
+            if (spec.cols == 3) config.group else "Черга ${config.group}"
+        )
+
+        if (hasTomorrow) {
+            views.setViewVisibility(R.id.fullDayToggleGroup, View.VISIBLE)
+            views.setInt(
+                R.id.fullBtnToday,
+                "setBackgroundResource",
+                if (!isTomorrowView) R.drawable.refresh_btn_bg else 0
+            )
+            views.setTextColor(
+                R.id.fullBtnToday,
+                if (!isTomorrowView) 0xFFF2F4F5.toInt() else 0xFF8FA3B8.toInt()
+            )
+            views.setInt(
+                R.id.fullBtnTomorrow,
+                "setBackgroundResource",
+                if (isTomorrowView) R.drawable.pill_day_active else 0
+            )
+            views.setTextColor(
+                R.id.fullBtnTomorrow,
+                if (isTomorrowView) 0xFF101316.toInt() else 0xFF8FA3B8.toInt()
+            )
+            views.setOnClickPendingIntent(
+                R.id.fullBtnToday,
+                actionPendingIntent(context, providerClass, ACTION_DAY_TODAY, widgetId)
+            )
+            views.setOnClickPendingIntent(
+                R.id.fullBtnTomorrow,
+                actionPendingIntent(context, providerClass, ACTION_DAY_TOMORROW, widgetId)
+            )
+        } else {
+            views.setViewVisibility(R.id.fullDayToggleGroup, View.GONE)
+        }
+
+        val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
+            todayBlocks = todayBlocks,
+            tomorrowBlocks = tomorrowBlocks,
+            nowRatio = outage.nowRatio,
+            windowStartHour = windowStartHour,
+            stepHours = spec.stepHours,
+            widthPx = 720,
+            heightPx = 78
+        )
+        views.setImageViewBitmap(R.id.fullOutageBarImage, barBitmap)
+
+        val chipsToRender: List<OutageChipUi> = if (isTomorrowView) {
+            tomorrowSlots.mapIndexed { idx, slot ->
+                OutageChipUi("${slot.start}–${slot.end}", idx == 0)
+            }
+        } else {
+            outage.todaySlotChips
+        }
+        val maxChips = min(if (spec.cols == 3) 3 else 4, chipsToRender.size)
+        val chipIds = intArrayOf(R.id.fullChip0, R.id.fullChip1, R.id.fullChip2, R.id.fullChip3)
+        if (maxChips == 0) {
+            views.setViewVisibility(R.id.fullChipsRow, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.fullChipsRow, View.VISIBLE)
+            for (i in chipIds.indices) {
+                if (i < maxChips) {
+                    val chip = chipsToRender[i]
+                    views.setViewVisibility(chipIds[i], View.VISIBLE)
+                    views.setTextViewText(chipIds[i], chip.label)
+                    views.setInt(
+                        chipIds[i],
+                        "setBackgroundResource",
+                        if (chip.isHighlight) R.drawable.pill_day_active else R.drawable.pill_day_inactive
+                    )
+                    views.setTextColor(
+                        chipIds[i],
+                        if (chip.isHighlight) 0xFF101316.toInt() else 0xFFC9CFD5.toInt()
+                    )
+                } else {
+                    views.setViewVisibility(chipIds[i], View.GONE)
+                }
+            }
+        }
+
+        views.setOnClickPendingIntent(R.id.fullRefreshBtn, refreshPi)
+        views.setOnClickPendingIntent(R.id.fullHeaderTitle, openPi)
+        views.setOnClickPendingIntent(R.id.fullGaugeContainer, openPi)
+        views.setOnClickPendingIntent(R.id.fullInfoContainer, openPi)
+        views.setOnClickPendingIntent(R.id.fullPrevWindowBtn, prevPi)
+        views.setOnClickPendingIntent(R.id.fullNextWindowBtn, nextPi)
 
         return views
+    }
+
+    private fun openAppPendingIntent(context: Context, widgetId: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            data = Uri.parse("marstek://open/$widgetId")
+        }
+        return PendingIntent.getActivity(
+            context,
+            max(1, widgetId) * 100 + 1,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun actionPendingIntent(
+        context: Context,
+        providerClass: Class<*>,
+        action: String,
+        widgetId: Int
+    ): PendingIntent {
+        val codeOffset = when (action) {
+            ACTION_REFRESH -> 2
+            ACTION_WINDOW_PREV -> 3
+            ACTION_WINDOW_NEXT -> 4
+            ACTION_DAY_TODAY -> 5
+            ACTION_DAY_TOMORROW -> 6
+            ACTION_TOGGLE_DAY -> 7
+            else -> 9
+        }
+        val intent = Intent(context, providerClass).apply {
+            this.action = action
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            data = Uri.parse("marstek://widget/$widgetId/$action")
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            max(1, widgetId) * 100 + codeOffset,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 }

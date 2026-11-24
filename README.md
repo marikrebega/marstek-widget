@@ -1,22 +1,22 @@
-# Marstek Venus Widget (React + Local UDP Bridge)
+# Marstek Venus Widget
 
-A web application and live status widget for **Marstek Venus D** energy storage systems. It mirrors the widget telemetry and local UDP `ES.GetStatus` connection flow from the Android app using a React frontend and a Node.js/Express UDP proxy on port `30000`.
+Production web companion and Android APK (with Home Screen Widgets) for **Marstek Venus D** energy storage systems and real-time Ukrainian power outage schedules.
 
 ## Features
 
-- **Full & Compact Widget Views**: Switch between the full `390×720` widget (charging, discharging, idle states with circular SOC gauge, discharge/charge limit markers, time-to-limit estimates, and 24-hour power outage schedule bar) and the compact `360×170` widget.
-- **Direct Local UDP Bridge (`ES.GetStatus`)**: Queries your Marstek battery over UDP on port `30000` (with retry and `Marstek.GetDevice` fallback probe) via `/api/marstek/status`.
-- **Configurable Limits & Outage Schedule**: Customize discharge/charge limits (`10%` / `90%`) and today's planned outage intervals (`Графік відключень світла`), persisted in `localStorage`.
-- **Demo Mode**: Preview Charging, Discharging, and Idle widget states without a physical Marstek battery on the local network.
+- **Full & Compact Widgets (Web & Android Home Screen)**: Real-time circular SOC gauge, charging/discharging/idle mode (`pv_power - ongrid_power - offgrid_power`), direct time-to-100% / time-to-0% & Wh energy estimates, and 24-hour Kyiv-time outage bar.
+- **Direct Local UDP Telemetry**: Queries Marstek (`ES.GetStatus`, `Bat.GetStatus`, `ES.GetMode`, with `Marstek.GetDevice` probe fallback) over LAN UDP port `30000`, plus a raw JSON-RPC log viewer inside the app.
+- **Real Outage Schedule APIs**: Supports Прикарпаттяобленерго (`be-svitlo.oe.if.ua`), Yasno (Kyiv, Dnipro), and DTEK (Kyiv region, Odesa) with automatic today/tomorrow countdowns.
+- **Automated Signed Release APK**: GitHub Actions builds `assembleRelease` with automatic Git-based versioning and optional persistent keystore signing via `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` secrets.
 
-## Running Locally
+## Running Web Version Locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` in your browser. For production:
+Open `http://localhost:3000`. For production build:
 
 ```bash
 npm run build

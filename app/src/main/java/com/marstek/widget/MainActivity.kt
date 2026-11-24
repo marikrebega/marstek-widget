@@ -1,6 +1,9 @@
 package com.marstek.widget
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -8,6 +11,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.util.concurrent.Executors
@@ -20,6 +25,13 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        OutageNotifier.ensureChannel(this)
+        val config = MarstekStore.loadConfig(this)
+        OutageMonitorJobService.syncSchedule(this, config.notifyOutages)
+        if (config.notifyOutages) {
+            requestPostNotificationsIfNeeded()
+        }
 
         webView = WebView(this).apply {
             setBackgroundColor(0xFF0B0D10.toInt())
@@ -77,6 +89,22 @@ class MainActivity : AppCompatActivity() {
         executor.shutdownNow()
     }
 
+    private fun requestPostNotificationsIfNeeded(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQ_POST_NOTIFICATIONS
+            )
+        }
+        return granted
+    }
+
     private fun deliverBridgeResult(requestId: String, ok: Boolean, payload: String) {
         val js = "window.__marstekNativeCallback && window.__marstekNativeCallback(${
             JSONObject.quote(requestId)
@@ -95,21 +123,34 @@ class MainActivity : AppCompatActivity() {
             ip: String,
             port: Int,
             providerId: String,
-            group: String
+            group: String,
+            notifyOutages: Boolean = true
         ) {
             MarstekStore.saveConfig(
                 context = this@MainActivity,
                 ip = ip,
                 port = port,
                 providerId = providerId,
-                group = group
+                group = group,
+                notifyOutages = notifyOutages
             )
+            OutageMonitorJobService.syncSchedule(this@MainActivity, notifyOutages)
             MarstekWidgetUpdater.updateAllFromCache(this@MainActivity, isUpdating = false)
         }
 
         @JavascriptInterface
         fun loadConfig(): String {
             return MarstekStore.configToJson(MarstekStore.loadConfig(this@MainActivity))
+        }
+
+        @JavascriptInterface
+        fun requestNotificationPermission(): Boolean {
+            return requestPostNotificationsIfNeeded()
+        }
+
+        @JavascriptInterface
+        fun sendTestOutageNotification(): Boolean {
+            return OutageNotifier.sendTestNotification(this@MainActivity)
         }
 
         @JavascriptInterface
@@ -148,11 +189,17 @@ class MainActivity : AppCompatActivity() {
         ) {
             executor.execute {
                 try {
+                    val config = MarstekStore.loadConfig(this@MainActivity)
                     val outcome = MarstekClient.fetchOutages(providerId, group)
                     MarstekStore.saveOutagesJson(
                         this@MainActivity,
                         outcome.todayJson,
                         outcome.tomorrowJson
+                    )
+                    OutageNotifier.processOutageUpdate(
+                        this@MainActivity,
+                        config.copy(providerId = providerId, group = group),
+                        outcome
                     )
                     MarstekWidgetUpdater.updateAllFromCache(this@MainActivity, isUpdating = false)
                     deliverBridgeResult(requestId, true, outcome.bridgeJson)
@@ -164,5 +211,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    companion object {
+        private const val REQ_POST_NOTIFICATIONS = 1001
     }
 }

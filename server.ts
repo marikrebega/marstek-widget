@@ -33,6 +33,7 @@ export interface MarstekStatusDto {
   totalLoadEnergy: number;
   deviceName?: string;
   workMode?: string;
+  batTemp?: number;
   timestamp: number;
 }
 
@@ -60,6 +61,21 @@ function toInt(value: unknown, fallback = 0): number {
     }
   }
   return fallback;
+}
+
+function toTempC(value: unknown): number | undefined {
+  let num: number | undefined;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    num = value;
+  } else if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      num = parsed;
+    }
+  }
+  if (num === undefined) return undefined;
+  const normalized = num > 120 ? num / 10 : num;
+  return Math.round(normalized * 10) / 10;
 }
 
 function sleepMs(ms: number): Promise<void> {
@@ -102,6 +118,7 @@ function parseMarstekJson(jsonStr: string): MarstekStatusDto {
     totalGridInputEnergy: toInt(result.total_grid_input_energy, 0),
     totalLoadEnergy: toInt(result.total_load_energy, 0),
     deviceName,
+    batTemp: toTempC(result.bat_temp),
     timestamp: Date.now(),
   };
 }
@@ -195,10 +212,16 @@ async function probeDevice(ipAddress: string, port: number): Promise<string | nu
 async function queryOptionalDetails(
   ipAddress: string,
   port: number
-): Promise<{ extraLogs: ExtraLog[]; ratedCapacity: number; workMode?: string }> {
+): Promise<{
+  extraLogs: ExtraLog[];
+  ratedCapacity: number;
+  workMode?: string;
+  batTemp?: number;
+}> {
   const extraLogs: ExtraLog[] = [];
   let ratedCapacity = 0;
   let workMode: string | undefined;
+  let batTemp: number | undefined;
 
   // Query sequentially with short pause so Venus D UDP stack does not drop packets
   try {
@@ -214,6 +237,7 @@ async function queryOptionalDetails(
       const parsed = JSON.parse(batRaw) as RawMarstekPayload;
       if (parsed.result && typeof parsed.result === 'object') {
         ratedCapacity = toInt(parsed.result.rated_capacity, 0);
+        batTemp = toTempC(parsed.result.bat_temp);
       }
     }
   } catch {
@@ -239,7 +263,7 @@ async function queryOptionalDetails(
     // Optional telemetry
   }
 
-  return { extraLogs, ratedCapacity, workMode };
+  return { extraLogs, ratedCapacity, batTemp, workMode };
 }
 
 async function queryMarstekStatus(ipAddress: string, port: number): Promise<QueryOutcome> {
@@ -258,9 +282,15 @@ async function queryMarstekStatus(ipAddress: string, port: number): Promise<Quer
       );
       lastRawResponse = responseJson;
       const status = parseMarstekJson(responseJson);
-      const { extraLogs, ratedCapacity, workMode } = await queryOptionalDetails(ipAddress, port);
+      const { extraLogs, ratedCapacity, batTemp, workMode } = await queryOptionalDetails(
+        ipAddress,
+        port
+      );
       if (status.batCap <= 0 && ratedCapacity > 0) {
         status.batCap = ratedCapacity;
+      }
+      if (batTemp !== undefined) {
+        status.batTemp = batTemp;
       }
       if (workMode) {
         status.workMode = workMode;
@@ -511,7 +541,7 @@ async function getOutageSchedule(
   if (provider.kind === 'prykarpattya') {
     const selectedGroup = PRYKARPATTYA_QUEUES.includes(requestedGroup)
       ? requestedGroup
-      : PRYKARPATTYA_QUEUES[0];
+      : '5.2';
     const requestUrl = `${provider.url}?queue=${encodeURIComponent(selectedGroup)}`;
 
     const rawData = (await fetchUpstreamJson(requestUrl, forceRefresh, {
@@ -680,9 +710,9 @@ async function startServer() {
 
   app.get('/api/outages/schedule', async (req: Request, res: Response) => {
     const providerId =
-      typeof req.query.provider === 'string' ? req.query.provider : 'yasno-kyiv';
+      typeof req.query.provider === 'string' ? req.query.provider : 'prykarpattya-oe';
     const group =
-      typeof req.query.group === 'string' ? req.query.group : '';
+      typeof req.query.group === 'string' ? req.query.group : '5.2';
     const forceRefresh = req.query.refresh === '1';
 
     try {

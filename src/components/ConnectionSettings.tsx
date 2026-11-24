@@ -4,6 +4,7 @@ import {
   getBatteryMode,
   getModeVisuals,
   getNetBatteryPower,
+  getTemperatureVisuals,
   type MarstekLogEntry,
   type MarstekStatus,
   type OutageConfig,
@@ -11,6 +12,7 @@ import {
   type OutageSlot,
 } from '../types/marstek';
 import { MarstekLogsPanel } from './MarstekLogsPanel';
+import { hasNativeAndroidBridge } from '../services/nativeBridge';
 
 export type TestState =
   | { kind: 'idle' }
@@ -27,14 +29,18 @@ interface ConnectionSettingsProps {
   outageProviders: OutageProviderInfo[];
   availableGroups: string[];
   outageSlots: OutageSlot[];
+  tomorrowOutageSlots?: OutageSlot[];
   outageLoading: boolean;
   outageError: string | null;
   outageUpdatedAt: string | null;
+  notifyOutages: boolean;
   logs: MarstekLogEntry[];
   ipInputRef?: RefObject<HTMLInputElement | null>;
   onIpChange: (value: string) => void;
   onPortChange: (value: string) => void;
   onOutageConfigChange: (config: OutageConfig) => void;
+  onNotifyOutagesChange: (enabled: boolean) => void;
+  onTestNotification?: () => void;
   onRefreshOutages: () => void;
   onClearLogs: () => void;
   onTestConnection: () => void;
@@ -50,19 +56,24 @@ export function ConnectionSettings({
   outageProviders,
   availableGroups,
   outageSlots,
+  tomorrowOutageSlots = [],
   outageLoading,
   outageError,
   outageUpdatedAt,
+  notifyOutages,
   logs,
   ipInputRef,
   onIpChange,
   onPortChange,
   onOutageConfigChange,
+  onNotifyOutagesChange,
+  onTestNotification,
   onRefreshOutages,
   onClearLogs,
   onTestConnection,
   onSaveSettings,
 }: ConnectionSettingsProps) {
+  const isNativeAndroid = hasNativeAndroidBridge();
   const formattedUpdatedAt = outageUpdatedAt
     ? new Date(outageUpdatedAt).toLocaleString('uk-UA', {
         timeZone: 'Europe/Kyiv',
@@ -191,6 +202,14 @@ export function ConnectionSettings({
                 )}
                 <dt className="text-[#A8B0B8]">Заряд (SOC):</dt>
                 <dd>{testState.status.batSoc}%</dd>
+                {typeof testState.status.batTemp === 'number' && (
+                  <>
+                    <dt className="text-[#A8B0B8]">Температура:</dt>
+                    <dd style={{ color: getTemperatureVisuals(testState.status.batTemp).color }}>
+                      {getTemperatureVisuals(testState.status.batTemp).label}
+                    </dd>
+                  </>
+                )}
                 <dt className="text-[#A8B0B8]">Ємність батареї:</dt>
                 <dd>{testState.status.batCap} Вт·год</dd>
                 <dt className="text-[#A8B0B8]">Батарея (нетто):</dt>
@@ -353,6 +372,63 @@ export function ConnectionSettings({
             </div>
           )
         )}
+
+        {tomorrowOutageSlots.length > 0 && (
+          <div className="pt-2 border-t border-[#2A2F35] space-y-1.5">
+            <div className="text-[11px] font-semibold text-[#A8B0B8]">
+              Графік на завтра:
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {tomorrowOutageSlots.map((slot) => (
+                <span
+                  key={slot.id}
+                  className="rounded-lg bg-[#101316] border border-[#2A2F35] px-2.5 py-1 text-xs font-mono-tabular text-[#C9CFD5]"
+                >
+                  {slot.start} – {slot.end}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Outage Change Notifications Toggle */}
+        <div className="pt-2.5 border-t border-[#2A2F35] flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-[#F2F4F5]">
+              Сповіщення про зміну графіка
+            </div>
+            <div className="text-[11px] text-[#A8B0B8]">
+              Push на телефон при змінах на сьогодні або появі графіка на завтра (раз на 30 хв, без розряду при розблокуванні)
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isNativeAndroid && onTestNotification && notifyOutages && (
+              <button
+                type="button"
+                onClick={onTestNotification}
+                className="rounded-lg bg-[#101316] border border-[#2A2F35] hover:border-[#FFC24D] px-2.5 py-1 text-[11px] text-[#FFC24D] transition-colors cursor-pointer"
+              >
+                Тест
+              </button>
+            )}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={notifyOutages}
+              aria-label="Сповіщення про зміну графіка"
+              onClick={() => onNotifyOutagesChange(!notifyOutages)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                notifyOutages ? 'bg-[#3DDC84]' : 'bg-[#2A2F35]'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-[#101316] transition-transform ${
+                  notifyOutages ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Marstek Response Logs Panel (in App, not in widget) */}
@@ -366,8 +442,8 @@ export function ConnectionSettings({
         <ol className="space-y-1 text-xs leading-relaxed text-[#A8B0B8] list-decimal list-inside">
           <li>Затисніть порожнє місце на головному екрані телефону.</li>
           <li>Оберіть пункт <strong className="text-[#F2F4F5]">Віджети</strong> (Widgets).</li>
-          <li>Знайдіть <strong className="text-[#F2F4F5]">Marstek Venus Widget</strong> і оберіть <strong className="text-[#F2F4F5]">Повний</strong> або <strong className="text-[#F2F4F5]">Компактний</strong> віджет.</li>
-          <li>Перетягніть віджет на екран. Натискання на статус/віджет оновлює дані, на заголовок — відкриває налаштування.</li>
+          <li>Знайдіть <strong className="text-[#F2F4F5]">Marstek Venus Widget</strong> і оберіть <strong className="text-[#F2F4F5]">Повний</strong>, <strong className="text-[#F2F4F5]">Компактний</strong> або <strong className="text-[#F2F4F5]">Міні (2×2 / 1×1)</strong>.</li>
+          <li>Розтягуйте віджет під будь-яку ширину (1×1 … 5×3) — сітка, шкала 00–24 та перехід на завтра підлаштуються автоматично.</li>
         </ol>
       </div>
     </div>

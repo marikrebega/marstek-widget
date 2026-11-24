@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConnectionSettings, type TestState } from './components/ConnectionSettings';
-import { MarstekCompactWidget } from './components/MarstekCompactWidget';
-import { MarstekFullWidget } from './components/MarstekFullWidget';
+import {
+  MarstekAdaptiveWidget,
+  type OutageStepSetting,
+  type WidgetFilterGroup,
+  type WidgetGridVariant,
+} from './components/MarstekAdaptiveWidget';
 import { fetchMarstekStatus, MarstekFetchError } from './services/marstekApi';
-import { syncConfigToNativeAndroid } from './services/nativeBridge';
+import {
+  requestNativeNotificationPermission,
+  sendNativeTestNotification,
+  syncConfigToNativeAndroid,
+} from './services/nativeBridge';
 import { fetchOutageProviders, fetchOutageSchedule } from './services/outageApi';
 import {
   loadPreferences,
   saveCachedOutages,
   saveDeviceConfig,
   saveLatestStatus,
+  saveNotifyOutages,
   saveOutageConfig,
-  saveWidgetSize,
-  type WidgetSizeMode,
+  savePreviewUiState,
 } from './services/preferences';
 import {
   formatTimeHHMM,
@@ -52,6 +60,12 @@ export function App() {
   const [offGridPower, setOffGridPower] = useState(
     initialPrefs.current.lastFullStatus?.offGridPower ?? 0
   );
+  const [batTemp, setBatTemp] = useState<number | undefined>(
+    initialPrefs.current.lastFullStatus?.batTemp
+  );
+  const [lastUpdateTime, setLastUpdateTime] = useState(
+    initialPrefs.current.lastUpdateTime
+  );
 
   const [outageConfig, setOutageConfig] = useState<OutageConfig>(
     initialPrefs.current.outageConfig
@@ -71,8 +85,14 @@ export function App() {
   const [outageError, setOutageError] = useState<string | null>(null);
   const [outageUpdatedAt, setOutageUpdatedAt] = useState<string | null>(null);
 
-  const [widgetSize, setWidgetSize] = useState<WidgetSizeMode>(
-    initialPrefs.current.widgetSize
+  const [widgetFilter, setWidgetFilter] = useState<WidgetFilterGroup>(
+    initialPrefs.current.widgetFilter
+  );
+  const [outageStep, setOutageStep] = useState<OutageStepSetting>(
+    initialPrefs.current.outageStep
+  );
+  const [notifyOutages, setNotifyOutages] = useState<boolean>(
+    initialPrefs.current.notifyOutages
   );
   const [nowMinutes, setNowMinutes] = useState(() => getKyivMinutes());
 
@@ -143,8 +163,9 @@ export function App() {
       port: savedPort,
       providerId: outageConfig.providerId,
       group: outageConfig.group,
+      notifyOutages,
     });
-  }, [savedIp, savedPort, outageConfig.providerId, outageConfig.group]);
+  }, [savedIp, savedPort, outageConfig.providerId, outageConfig.group, notifyOutages]);
 
   useEffect(() => {
     void fetchOutageProviders()
@@ -174,6 +195,8 @@ export function App() {
         setPvPower(outcome.status.pvPower);
         setOnGridPower(outcome.status.onGridPower);
         setOffGridPower(outcome.status.offGridPower);
+        setBatTemp(outcome.status.batTemp);
+        setLastUpdateTime(formatted);
         setIsError(false);
 
         appendLog({
@@ -333,6 +356,7 @@ export function App() {
       port: parsedPort,
       providerId: outageConfig.providerId,
       group: outageConfig.group,
+      notifyOutages,
     });
 
     showToast('Налаштування збережено! Оновлення віджета...');
@@ -344,16 +368,72 @@ export function App() {
     saveOutageConfig(nextConfig);
   };
 
-  const handleWidgetSizeChange = (size: WidgetSizeMode) => {
-    setWidgetSize(size);
-    saveWidgetSize(size);
+  const handleNotifyOutagesChange = (enabled: boolean) => {
+    setNotifyOutages(enabled);
+    saveNotifyOutages(enabled);
+    if (enabled) {
+      requestNativeNotificationPermission();
+      showToast('Сповіщення про зміни графіка увімкнено');
+    } else {
+      showToast('Сповіщення вимкнено');
+    }
   };
 
+  const handleTestNotification = () => {
+    const sent = sendNativeTestNotification();
+    if (sent) {
+      showToast('Тестове сповіщення надіслано');
+    } else {
+      requestNativeNotificationPermission();
+      showToast('Надайте дозвіл на сповіщення для перевірки');
+    }
+  };
+
+  const updatePreviewControls = (
+    nextFilter: WidgetFilterGroup,
+    nextStep: OutageStepSetting
+  ) => {
+    setWidgetFilter(nextFilter);
+    setOutageStep(nextStep);
+    savePreviewUiState(nextFilter, nextStep);
+  };
+
+  const filterTabs: Array<{ id: WidgetFilterGroup; label: string }> = [
+    { id: 'all', label: 'Усі (11)' },
+    { id: '5col', label: '5×N' },
+    { id: '4col', label: '4×N' },
+    { id: '3col', label: '3×N' },
+    { id: 'mini', label: '2×2 · 1×1' },
+  ];
+
+  const allGridItems: Array<{
+    variant: WidgetGridVariant;
+    group: Exclude<WidgetFilterGroup, 'all'>;
+    caption: string;
+  }> = [
+    { variant: '5x3', group: '5col', caption: '5×3 · Повний широкий' },
+    { variant: '5x2', group: '5col', caption: '5×2 · Середній широкий' },
+    { variant: '5x1', group: '5col', caption: '5×1 · Широка смужка' },
+    { variant: '4x3', group: '4col', caption: '4×3 · Повний стандартний' },
+    { variant: '4x2', group: '4col', caption: '4×2 · Середній стандартний' },
+    { variant: '4x1', group: '4col', caption: '4×1 · Смужка' },
+    { variant: '3x3', group: '3col', caption: '3×3 · Компактний квадрат' },
+    { variant: '3x2', group: '3col', caption: '3×2 · Вузький середній' },
+    { variant: '3x1', group: '3col', caption: '3×1 · Вузька смужка' },
+    { variant: '2x2', group: 'mini', caption: '2×2 · Міні' },
+    { variant: '1x1', group: 'mini', caption: '1×1 · Мікро' },
+  ];
+
+  const visibleVariants =
+    widgetFilter === 'all'
+      ? allGridItems
+      : allGridItems.filter((item) => item.group === widgetFilter);
+
   return (
-    <div className="min-h-screen bg-[#0B0D10] text-[#F2F4F5] flex flex-col">
+    <div className="min-h-screen bg-[#0B0D10] text-[#F2F4F5] flex flex-col overflow-x-hidden">
       {/* Top Bar */}
       <header className="border-b border-[#1E2329] bg-[#101316]">
-        <div className="max-w-5xl mx-auto px-5 py-3.5 flex items-center justify-between gap-8">
+        <div className="max-w-5xl w-full mx-auto px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 sm:gap-8">
           <a
             href="#top"
             className="text-base font-bold tracking-tight text-[#F2F4F5] whitespace-nowrap shrink-0"
@@ -394,76 +474,105 @@ export function App() {
       </header>
 
       {/* Main Content */}
-      <main id="top" className="flex-1 max-w-5xl w-full mx-auto px-5 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[410px_1fr] gap-8 items-start">
+      <main id="top" className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-5 py-6 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,410px)_minmax(0,1fr)] gap-8 items-start">
           {/* Left Column: Live Widget Preview */}
-          <section id="widget-preview" className="lg:sticky lg:top-8 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="inline-flex rounded-lg bg-[#1B2025] p-0.5 border border-[#2A2F35]">
-                <button
-                  type="button"
-                  onClick={() => handleWidgetSizeChange('full')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                    widgetSize === 'full'
-                      ? 'bg-[#2A2F35] text-[#F2F4F5]'
-                      : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
-                  }`}
-                >
-                  Повний 390×720
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleWidgetSizeChange('compact')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                    widgetSize === 'compact'
-                      ? 'bg-[#2A2F35] text-[#F2F4F5]'
-                      : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
-                  }`}
-                >
-                  Компактний 360×170
-                </button>
+          <section id="widget-preview" className="min-w-0 w-full lg:sticky lg:top-8 space-y-4">
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-sm font-semibold text-[#F2F4F5]">
+                  Прев’ю макетів (усі сітки)
+                </h2>
+                <span className="text-xs font-mono-tabular text-[#A8B0B8] break-all">
+                  {savedIp}:{savedPort}
+                </span>
               </div>
 
-              <span className="text-xs font-mono-tabular text-[#A8B0B8]">
-                {savedIp}:{savedPort}
-              </span>
+              <p className="text-[11px] text-[#8FA3B8]">
+                Скрол-шкала 00–24 (вікно 12 год із переходом на завтра), температура й оновлення на віджеті.
+              </p>
+
+              {/* Row 1: Grid Width Group Filter */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex flex-wrap rounded-lg bg-[#1B2025] p-0.5 border border-[#2A2F35]">
+                  {filterTabs.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updatePreviewControls(opt.id, outageStep)}
+                      className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                        widgetFilter === opt.id
+                          ? 'bg-[#2A2F35] text-[#F2F4F5]'
+                          : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="inline-flex items-center rounded-lg bg-[#1B2025] p-0.5 border border-[#2A2F35]">
+                  <span className="px-2 text-[10.5px] text-[#8FA3B8] whitespace-nowrap">
+                    Крок:
+                  </span>
+                  {(['auto', 1, 2, 3, 4] as const).map((stepOpt) => (
+                    <button
+                      key={stepOpt}
+                      type="button"
+                      onClick={() => updatePreviewControls(widgetFilter, stepOpt)}
+                      title={
+                        stepOpt === 'auto'
+                          ? '1г для ширини ≥4, 2г для менших'
+                          : `Фіксований крок ${stepOpt} год`
+                      }
+                      className={`px-2 py-1 text-[11px] font-mono-tabular rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                        outageStep === stepOpt
+                          ? 'bg-[#2A2F35] text-[#FFC24D] font-semibold'
+                          : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
+                      }`}
+                    >
+                      {stepOpt === 'auto' ? 'Авто' : `${stepOpt}г`}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Widget Canvas */}
-            <div className="flex justify-center">
-              {widgetSize === 'full' ? (
-                <MarstekFullWidget
-                  soc={soc}
-                  batCap={batCap}
-                  pvPower={pvPower}
-                  onGridPower={onGridPower}
-                  offGridPower={offGridPower}
-                  outageSlots={apiOutageSlots}
-                  tomorrowOutageSlots={tomorrowApiOutageSlots}
-                  outageGroupLabel={outageConfig.group}
-                  nowMinutes={nowMinutes}
-                  isUpdating={isUpdating}
-                  isError={isError}
-                  onRefresh={() => void refreshWidget(savedIp, savedPort)}
-                />
-              ) : (
-                <MarstekCompactWidget
-                  soc={soc}
-                  batCap={batCap}
-                  pvPower={pvPower}
-                  onGridPower={onGridPower}
-                  offGridPower={offGridPower}
-                  outageSlots={apiOutageSlots}
-                  tomorrowOutageSlots={tomorrowApiOutageSlots}
-                  nowMinutes={nowMinutes}
-                  onRefresh={() => void refreshWidget(savedIp, savedPort)}
-                />
-              )}
+            <div className="flex flex-col items-center gap-4 w-full">
+              {visibleVariants.map((item) => (
+                <div
+                  key={item.variant}
+                  className="w-full flex flex-col items-center gap-1.5"
+                >
+                  <span className="text-[11px] font-medium text-[#8FA3B8] tracking-wide">
+                    {item.caption}
+                  </span>
+                  <MarstekAdaptiveWidget
+                    variant={item.variant}
+                    stepHours={outageStep}
+                    soc={soc}
+                    batCap={batCap}
+                    pvPower={pvPower}
+                    onGridPower={onGridPower}
+                    offGridPower={offGridPower}
+                    batTemp={batTemp}
+                    outageSlots={apiOutageSlots}
+                    tomorrowOutageSlots={tomorrowApiOutageSlots}
+                    outageGroupLabel={outageConfig.group}
+                    lastUpdateTime={lastUpdateTime}
+                    nowMinutes={nowMinutes}
+                    isUpdating={isUpdating}
+                    isError={isError}
+                    onRefresh={() => void refreshWidget(savedIp, savedPort)}
+                  />
+                </div>
+              ))}
             </div>
           </section>
 
           {/* Right Column: Settings, Outages API, Logs */}
-          <section id="connection-settings">
+          <section id="connection-settings" className="min-w-0 w-full">
             <ConnectionSettings
               ip={ipInput}
               port={portInput}
@@ -473,9 +582,11 @@ export function App() {
               outageProviders={outageProviders}
               availableGroups={availableGroups}
               outageSlots={apiOutageSlots}
+              tomorrowOutageSlots={tomorrowApiOutageSlots}
               outageLoading={outageLoading}
               outageError={outageError}
               outageUpdatedAt={outageUpdatedAt}
+              notifyOutages={notifyOutages}
               logs={logs}
               ipInputRef={ipInputRef}
               onIpChange={(val) => {
@@ -484,6 +595,8 @@ export function App() {
               }}
               onPortChange={setPortInput}
               onOutageConfigChange={handleOutageConfigChange}
+              onNotifyOutagesChange={handleNotifyOutagesChange}
+              onTestNotification={handleTestNotification}
               onRefreshOutages={() =>
                 void loadOutageSchedule(
                   outageConfig.providerId,
