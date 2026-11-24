@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && tsc --noEmit",
+    "build": "vite build && tsc --noEmit && node -e \"const fs=require('fs'); fs.rmSync('app/src/main/assets/web',{recursive:true,force:true}); fs.cpSync('dist','app/src/main/assets/web',{recursive:true});\"",
     "lint": "eslint .",
     "start": "node server.ts"
   },

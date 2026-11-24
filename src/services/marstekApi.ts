@@ -1,4 +1,5 @@
 import type { MarstekStatus } from '../types/marstek';
+import { callNativeQueryStatus, hasNativeAndroidBridge } from './nativeBridge';
 
 export type SimulationPreset = 'charging' | 'discharging' | 'idle';
 
@@ -109,6 +110,35 @@ export async function fetchMarstekStatus(
   }
 
   const started = Date.now();
+
+  if (hasNativeAndroidBridge()) {
+    const rawJson = await callNativeQueryStatus(trimmedIp, port);
+    const payload = JSON.parse(rawJson) as {
+      status?: MarstekStatus;
+      rawResponse?: string | null;
+      method?: string;
+      durationMs?: number;
+      extraLogs?: Array<{ method: string; rawResponse: string }>;
+      error?: string;
+    };
+
+    if (payload.error || !payload.status) {
+      throw new MarstekFetchError(payload.error || 'Timeout or unreachable', {
+        rawResponse: payload.rawResponse ?? null,
+        method: payload.method || 'ES.GetStatus',
+        durationMs: payload.durationMs ?? Date.now() - started,
+      });
+    }
+
+    return {
+      status: payload.status,
+      rawResponse: payload.rawResponse ?? JSON.stringify(payload.status),
+      method: payload.method || 'ES.GetStatus',
+      durationMs: payload.durationMs ?? Date.now() - started,
+      extraLogs: payload.extraLogs,
+    };
+  }
+
   const response = await fetch('/api/marstek/status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
