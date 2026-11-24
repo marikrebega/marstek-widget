@@ -18,17 +18,9 @@ class MarstekFullWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        when (intent.action) {
-            MarstekWidgetUpdater.ACTION_REFRESH -> {
-                val pendingResult = goAsync()
-                MarstekWidgetUpdater.refreshAsync(context, pendingResult)
-            }
-            Intent.ACTION_USER_PRESENT -> {
-                if (MarstekStore.shouldAllowUserPresentRefresh(context)) {
-                    val pendingResult = goAsync()
-                    MarstekWidgetUpdater.refreshAsync(context, pendingResult)
-                }
-            }
+        if (intent.action == MarstekWidgetUpdater.ACTION_REFRESH) {
+            val pendingResult = goAsync()
+            MarstekWidgetUpdater.refreshAsync(context, pendingResult)
         }
     }
 }

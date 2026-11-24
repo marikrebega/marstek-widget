@@ -63,13 +63,32 @@ android {
     val vName = project.resolveVersionName()
 
     val localDebugKeystore = file("debug.keystore")
-    if (localDebugKeystore.exists()) {
-        signingConfigs {
+    val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+    val releaseStorePass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+    val releaseKeyPass = System.getenv("ANDROID_KEY_PASSWORD")
+
+    signingConfigs {
+        if (localDebugKeystore.exists()) {
             getByName("debug") {
                 storeFile = localDebugKeystore
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
                 keyPassword = "android"
+            }
+        }
+        if (
+            releaseKeystorePath != null &&
+            file(releaseKeystorePath).exists() &&
+            !releaseStorePass.isNullOrEmpty() &&
+            !releaseKeyAlias.isNullOrEmpty() &&
+            !releaseKeyPass.isNullOrEmpty()
+        ) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseStorePass
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPass
             }
         }
     }
@@ -88,6 +107,7 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

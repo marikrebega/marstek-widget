@@ -37,7 +37,10 @@ object MarstekWidgetUpdater {
 
     fun refreshAsync(context: Context, pendingResult: BroadcastReceiver.PendingResult? = null) {
         val appContext = context.applicationContext
-        updateAllFromCache(appContext, isUpdating = true)
+        try {
+            updateAllFromCache(appContext, isUpdating = true)
+        } catch (_: Exception) {
+        }
 
         executor.execute {
             try {
@@ -62,10 +65,10 @@ object MarstekWidgetUpdater {
                         outageOutcome.tomorrowJson
                     )
                 } catch (_: Exception) {
-                    // Keep previously cached outages if temporarily offline
                 }
 
                 updateAllFromCache(appContext, isUpdating = false)
+            } catch (_: Exception) {
             } finally {
                 try {
                     pendingResult?.finish()
@@ -149,7 +152,7 @@ object MarstekWidgetUpdater {
             soc = clampedSoc,
             hasSoc = hasSoc,
             mode = mode,
-            sizePx = 360,
+            sizePx = 240,
             strokeWidthRatio = 0.07f
         )
         views.setImageViewBitmap(R.id.fullGaugeImage, gaugeBitmap)
@@ -171,7 +174,9 @@ object MarstekWidgetUpdater {
 
         val barBitmap = WidgetGraphics.renderOutageBarBitmap(
             blocks = outage.blocks,
-            nowRatio = outage.nowRatio
+            nowRatio = outage.nowRatio,
+            widthPx = 480,
+            heightPx = 24
         )
         views.setImageViewBitmap(R.id.fullOutageBarImage, barBitmap)
 
@@ -212,7 +217,7 @@ object MarstekWidgetUpdater {
             soc = clampedSoc,
             hasSoc = hasSoc,
             mode = mode,
-            sizePx = 220,
+            sizePx = 160,
             strokeWidthRatio = 0.09f
         )
         views.setImageViewBitmap(R.id.compactGaugeImage, gaugeBitmap)

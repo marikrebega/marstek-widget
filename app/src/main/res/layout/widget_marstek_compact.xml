@@ -75,7 +75,7 @@
             android:ellipsize="end"
             android:fontFeatureSettings="tnum"
             android:maxLines="1"
-            android:text="Готово"
+            android:text="0 Вт·год"
             android:textColor="#F2F4F5"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -87,15 +87,17 @@
             android:ellipsize="end"
             android:fontFeatureSettings="tnum"
             android:maxLines="1"
-            android:text="запас 0 Вт·год"
+            android:text="ємність 2560 Вт·год"
             android:textColor="#A8B0B8"
             android:textSize="11sp" />
 
-        <View
+        <ImageView
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginVertical="7dp"
-            android:background="#2A2F35" />
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="6dp"
+            android:background="#2A2F35"
+            android:contentDescription="@null" />
 
         <TextView
             android:id="@+id/compactOutageCountdown"

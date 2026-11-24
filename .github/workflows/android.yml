@@ -67,30 +67,62 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Prepare Release Keystore
+        shell: bash
+        env:
+          SECRET_KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          SECRET_STORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          SECRET_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SECRET_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          KEYSTORE_FILE="${{ github.workspace }}/app/release.keystore"
+          if [[ -n "$SECRET_KEYSTORE_B64" && -n "$SECRET_STORE_PASS" && -n "$SECRET_KEY_ALIAS" && -n "$SECRET_KEY_PASS" ]]; then
+            echo "$SECRET_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_FILE"
+            echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
+            echo "ANDROID_KEYSTORE_PASSWORD=$SECRET_STORE_PASS" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_ALIAS=$SECRET_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$SECRET_KEY_PASS" >> "$GITHUB_ENV"
+            echo "Using persistent KEYSTORE_BASE64 secret for release signing."
+          else
+            TEMP_PASS=$(openssl rand -hex 16)
+            keytool -genkeypair -v \
+              -keystore "$KEYSTORE_FILE" \
+              -storetype PKCS12 \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias marstek_release \
+              -storepass "$TEMP_PASS" -keypass "$TEMP_PASS" \
+              -dname "CN=Marstek Venus Widget, OU=Mobile, O=Marstek, L=Ivano-Frankivsk, C=UA"
+            echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
+            echo "ANDROID_KEYSTORE_PASSWORD=$TEMP_PASS" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_ALIAS=marstek_release" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$TEMP_PASS" >> "$GITHUB_ENV"
+            echo "WARNING: KEYSTORE_BASE64 secret not set; generated ephemeral release keystore."
+          fi
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Build Debug APK
+      - name: Build Signed Release APK
         run: |
-          gradle assembleDebug --no-daemon \
+          gradle assembleRelease --no-daemon \
             -PversionCode="${{ steps.version.outputs.version_code }}" \
             -PversionName="${{ steps.version.outputs.version_name }}"
 
       - name: Rename APK with version
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             "app/build/outputs/apk/debug/marstek-venus-widget-${{ steps.version.outputs.version_name }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk \
+             "app/build/outputs/apk/release/marstek-venus-widget-${{ steps.version.outputs.version_name }}.apk"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: marstek-venus-widget-${{ steps.version.outputs.version_name }}
-          path: app/build/outputs/apk/debug/marstek-venus-widget-${{ steps.version.outputs.version_name }}.apk
+          path: app/build/outputs/apk/release/marstek-venus-widget-${{ steps.version.outputs.version_name }}.apk
 
       - name: Publish Release APK on Tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/marstek-venus-widget-${{ steps.version.outputs.version_name }}.apk
+          files: app/build/outputs/apk/release/marstek-venus-widget-${{ steps.version.outputs.version_name }}.apk

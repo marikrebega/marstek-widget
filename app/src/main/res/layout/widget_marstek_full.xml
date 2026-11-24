@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="14dp">
 
     <!-- Top Row: Header + Mode Badge -->
     <LinearLayout
@@ -20,7 +20,8 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:paddingVertical="4dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
             android:text="Marstek"
             android:textColor="#A8B0B8"
             android:textSize="14sp"
@@ -33,13 +34,15 @@
             android:background="@drawable/badge_idle"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="6dp">
+            android:paddingStart="10dp"
+            android:paddingTop="5dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="5dp">
 
             <ImageView
                 android:id="@+id/fullModeIcon"
-                android:layout_width="14dp"
-                android:layout_height="14dp"
+                android:layout_width="13dp"
+                android:layout_height="13dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_mode_idle" />
 
@@ -47,11 +50,11 @@
                 android:id="@+id/fullModeLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="5dp"
                 android:maxLines="1"
                 android:text="Очікування"
                 android:textColor="#8FA3B8"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
@@ -59,10 +62,10 @@
     <!-- Circular SOC Gauge -->
     <FrameLayout
         android:id="@+id/fullGaugeContainer"
-        android:layout_width="180dp"
-        android:layout_height="180dp"
+        android:layout_width="136dp"
+        android:layout_height="136dp"
         android:layout_gravity="center_horizontal"
-        android:layout_marginTop="10dp">
+        android:layout_marginTop="6dp">
 
         <ImageView
             android:id="@+id/fullGaugeImage"
@@ -85,18 +88,18 @@
                 android:includeFontPadding="false"
                 android:text="--%"
                 android:textColor="#F2F4F5"
-                android:textSize="42sp"
+                android:textSize="34sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/fullPowerText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="2dp"
                 android:fontFeatureSettings="tnum"
                 android:text="-- Вт"
                 android:textColor="#A8B0B8"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
         </LinearLayout>
     </FrameLayout>
 
@@ -104,10 +107,10 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:background="@drawable/widget_card_bg"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="10dp">
 
         <TextView
             android:id="@+id/fullCardTitle"
@@ -116,13 +119,13 @@
             android:maxLines="1"
             android:text="Стан батареї"
             android:textColor="#A8B0B8"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:orientation="horizontal">
 
             <LinearLayout
@@ -139,7 +142,7 @@
                     android:maxLines="1"
                     android:text="Запас енергії"
                     android:textColor="#A8B0B8"
-                    android:textSize="11sp" />
+                    android:textSize="10sp" />
 
                 <TextView
                     android:id="@+id/fullPrimaryValue"
@@ -151,15 +154,17 @@
                     android:maxLines="1"
                     android:text="0 Вт·год"
                     android:textColor="#F2F4F5"
-                    android:textSize="18sp"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <View
+            <ImageView
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
-                android:layout_marginHorizontal="10dp"
-                android:background="#2A2F35" />
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="#2A2F35"
+                android:contentDescription="@null" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -175,7 +180,7 @@
                     android:maxLines="1"
                     android:text="Ємність батареї"
                     android:textColor="#A8B0B8"
-                    android:textSize="11sp" />
+                    android:textSize="10sp" />
 
                 <TextView
                     android:id="@+id/fullSecondaryValue"
@@ -187,7 +192,7 @@
                     android:maxLines="1"
                     android:text="2560 Вт·год"
                     android:textColor="#C9CFD5"
-                    android:textSize="18sp"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
@@ -197,10 +202,10 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
         android:background="@drawable/widget_card_bg"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="10dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -215,7 +220,7 @@
                 android:maxLines="1"
                 android:text="Графік відключень світла"
                 android:textColor="#A8B0B8"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -227,19 +232,19 @@
                 android:maxLines="1"
                 android:text="Черга 1.1 · Сьогодні"
                 android:textColor="#A8B0B8"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/fullOutageRange"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:fontFeatureSettings="tnum"
             android:maxLines="1"
             android:text="Немає відключень"
             android:textColor="#FFC24D"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
@@ -252,20 +257,20 @@
             android:maxLines="1"
             android:text="На сьогодні відключень не заплановано"
             android:textColor="#C9CFD5"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
 
         <ImageView
             android:id="@+id/fullOutageBarImage"
             android:layout_width="match_parent"
-            android:layout_height="16dp"
-            android:layout_marginTop="8dp"
+            android:layout_height="14dp"
+            android:layout_marginTop="6dp"
             android:contentDescription="@null"
             android:scaleType="fitXY" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="3dp"
             android:orientation="horizontal">
 
             <TextView
