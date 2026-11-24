@@ -43,7 +43,6 @@ object MarstekWidgetUpdater {
             try {
                 val config = MarstekStore.loadConfig(appContext)
 
-                // Fetch Marstek UDP status (ES.GetStatus + Bat.GetStatus + ES.GetMode)
                 val udpOutcome = MarstekClient.queryMarstekStatus(
                     ip = config.ip,
                     port = config.port,
@@ -55,7 +54,6 @@ object MarstekWidgetUpdater {
                     MarstekStore.markStatusError(appContext)
                 }
 
-                // Fetch real outage schedule
                 try {
                     val outageOutcome = MarstekClient.fetchOutages(config.providerId, config.group)
                     MarstekStore.saveOutagesJson(
@@ -121,9 +119,7 @@ object MarstekWidgetUpdater {
         val durations = MarstekStore.computeEnergyDurations(
             soc = clampedSoc,
             batCapWh = cached.batCap,
-            netBatteryPower = netPower,
-            dischargeLimit = config.dischargeLimit,
-            chargeLimit = config.chargeLimit
+            netBatteryPower = netPower
         )
         val mode = durations.mode
         val outage = MarstekStore.evaluateOutageSchedule(
@@ -153,9 +149,6 @@ object MarstekWidgetUpdater {
             soc = clampedSoc,
             hasSoc = hasSoc,
             mode = mode,
-            dischargeLimit = config.dischargeLimit,
-            chargeLimit = config.chargeLimit,
-            showLimitTicks = true,
             sizePx = 360,
             strokeWidthRatio = 0.07f
         )
@@ -166,16 +159,11 @@ object MarstekWidgetUpdater {
             if (hasSoc) MarstekStore.formatPowerUk(netPower) else "-- Вт"
         )
 
-        views.setTextViewText(
-            R.id.fullLimitsLegend,
-            "Ліміт розряду: ${config.dischargeLimit}%    Ліміт заряду: ${config.chargeLimit}%"
-        )
-
         views.setTextViewText(R.id.fullCardTitle, durations.cardTitle)
         views.setTextViewText(R.id.fullLeftLabel, durations.leftLabel)
-        views.setTextViewText(R.id.fullWithLimitsValue, durations.withLimitsText)
+        views.setTextViewText(R.id.fullPrimaryValue, durations.primaryValueText)
         views.setTextViewText(R.id.fullRightLabel, durations.rightLabel)
-        views.setTextViewText(R.id.fullWithoutLimitsValue, durations.withoutLimitsText)
+        views.setTextViewText(R.id.fullSecondaryValue, durations.secondaryValueText)
 
         views.setTextViewText(R.id.fullOutageGroup, "Черга ${config.group} · Сьогодні")
         views.setTextViewText(R.id.fullOutageRange, outage.rangeText)
@@ -198,7 +186,6 @@ object MarstekWidgetUpdater {
 
     private fun buildCompactRemoteViews(context: Context): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_marstek_compact)
-        val config = MarstekStore.loadConfig(context)
         val cached = MarstekStore.loadCachedStatus(context)
         val (todaySlots, tomorrowSlots) = MarstekStore.loadCachedOutages(context)
 
@@ -212,9 +199,7 @@ object MarstekWidgetUpdater {
         val durations = MarstekStore.computeEnergyDurations(
             soc = clampedSoc,
             batCapWh = cached.batCap,
-            netBatteryPower = netPower,
-            dischargeLimit = config.dischargeLimit,
-            chargeLimit = config.chargeLimit
+            netBatteryPower = netPower
         )
         val mode = durations.mode
         val outage = MarstekStore.evaluateOutageSchedule(
@@ -227,9 +212,6 @@ object MarstekWidgetUpdater {
             soc = clampedSoc,
             hasSoc = hasSoc,
             mode = mode,
-            dischargeLimit = config.dischargeLimit,
-            chargeLimit = config.chargeLimit,
-            showLimitTicks = false,
             sizePx = 220,
             strokeWidthRatio = 0.09f
         )
@@ -245,7 +227,7 @@ object MarstekWidgetUpdater {
         views.setTextViewText(R.id.compactModeLabel, mode.labelUk)
         views.setTextColor(R.id.compactModeLabel, mode.colorInt)
 
-        views.setTextViewText(R.id.compactPrimaryDuration, durations.withLimitsText)
+        views.setTextViewText(R.id.compactPrimaryDuration, durations.primaryValueText)
         views.setTextViewText(R.id.compactSubDuration, durations.compactSubText)
         views.setTextViewText(R.id.compactOutageCountdown, outage.compactCountdownText)
         views.setTextViewText(R.id.compactOutageRange, outage.rangeText)

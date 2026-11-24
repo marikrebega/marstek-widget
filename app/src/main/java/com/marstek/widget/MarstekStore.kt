@@ -8,7 +8,6 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 enum class BatteryMode(val labelUk: String, val colorInt: Int) {
@@ -20,8 +19,6 @@ enum class BatteryMode(val labelUk: String, val colorInt: Int) {
 data class MarstekConfig(
     val ip: String,
     val port: Int,
-    val dischargeLimit: Int,
-    val chargeLimit: Int,
     val providerId: String,
     val group: String
 )
@@ -52,8 +49,8 @@ data class EnergyDurationsUi(
     val cardTitle: String,
     val leftLabel: String,
     val rightLabel: String,
-    val withLimitsText: String,
-    val withoutLimitsText: String,
+    val primaryValueText: String,
+    val secondaryValueText: String,
     val compactSubText: String
 )
 
@@ -75,8 +72,6 @@ object MarstekStore {
 
     private const val KEY_IP = "device_ip"
     private const val KEY_PORT = "device_port"
-    private const val KEY_DISCHARGE_LIMIT = "discharge_limit"
-    private const val KEY_CHARGE_LIMIT = "charge_limit"
     private const val KEY_PROVIDER_ID = "provider_id"
     private const val KEY_GROUP = "outage_group"
 
@@ -101,27 +96,21 @@ object MarstekStore {
         val p = prefs(context)
         val ip = p.getString(KEY_IP, "192.168.0.190")?.trim().orEmpty().ifEmpty { "192.168.0.190" }
         val port = p.getInt(KEY_PORT, 30000).let { if (it in 1..65535) it else 30000 }
-        val discharge = p.getInt(KEY_DISCHARGE_LIMIT, 10).coerceIn(0, 50)
-        val charge = p.getInt(KEY_CHARGE_LIMIT, 90).coerceIn(50, 100)
         val provider = p.getString(KEY_PROVIDER_ID, "prykarpattya-oe").orEmpty().ifEmpty { "prykarpattya-oe" }
         val group = p.getString(KEY_GROUP, "1.1").orEmpty().ifEmpty { "1.1" }
-        return MarstekConfig(ip, port, discharge, charge, provider, group)
+        return MarstekConfig(ip, port, provider, group)
     }
 
     fun saveConfig(
         context: Context,
         ip: String,
         port: Int,
-        dischargeLimit: Int,
-        chargeLimit: Int,
         providerId: String,
         group: String
     ) {
         prefs(context).edit()
             .putString(KEY_IP, ip.trim().ifEmpty { "192.168.0.190" })
             .putInt(KEY_PORT, if (port in 1..65535) port else 30000)
-            .putInt(KEY_DISCHARGE_LIMIT, dischargeLimit.coerceIn(0, 50))
-            .putInt(KEY_CHARGE_LIMIT, chargeLimit.coerceIn(50, 100))
             .putString(KEY_PROVIDER_ID, providerId.ifEmpty { "prykarpattya-oe" })
             .putString(KEY_GROUP, group.ifEmpty { "1.1" })
             .apply()
@@ -251,76 +240,55 @@ object MarstekStore {
     fun computeEnergyDurations(
         soc: Int,
         batCapWh: Int,
-        netBatteryPower: Int,
-        dischargeLimit: Int,
-        chargeLimit: Int
+        netBatteryPower: Int
     ): EnergyDurationsUi {
         val mode = getBatteryMode(netBatteryPower)
         val capacityWh = if (batCapWh > 0) batCapWh else 2560
         val clampedSoc = soc.coerceIn(0, 100)
+        val availableWh = ((clampedSoc / 100.0) * capacityWh).roundToInt()
+        val remainingWh = max(0, capacityWh - availableWh)
 
         if (mode == BatteryMode.CHARGING) {
             val powerW = max(1, abs(netBatteryPower)).toDouble()
-            val toLimitPct = max(0, chargeLimit - clampedSoc)
             val toFullPct = max(0, 100 - clampedSoc)
-
-            val minsToLimit = ((toLimitPct / 100.0) * capacityWh) / powerW * 60.0
             val minsToFull = ((toFullPct / 100.0) * capacityWh) / powerW * 60.0
-
-            val withLimits = if (clampedSoc >= chargeLimit) "Досягнуто" else formatDurationUk(minsToLimit)
-            val withoutLimits = if (clampedSoc >= 100) "Заряджено" else formatDurationUk(minsToFull)
+            val primaryValue = if (clampedSoc >= 100) "Заряджено" else formatDurationUk(minsToFull)
 
             return EnergyDurationsUi(
                 mode = mode,
                 cardTitle = "До повного заряду",
-                leftLabel = "З лімітами (до $chargeLimit%)",
-                rightLabel = "Без лімітів (до 100%)",
-                withLimitsText = withLimits,
-                withoutLimitsText = withoutLimits,
-                compactSubText = "до $chargeLimit% · без ліміту $withoutLimits"
+                leftLabel = "До 100%",
+                rightLabel = "Залишилось зарядити",
+                primaryValueText = primaryValue,
+                secondaryValueText = "$remainingWh Вт·год",
+                compactSubText = "до 100% · ${formatPowerUk(netBatteryPower)}"
             )
         }
 
         if (mode == BatteryMode.DISCHARGING) {
             val powerW = max(1, abs(netBatteryPower)).toDouble()
-            val toLimitPct = max(0, clampedSoc - dischargeLimit)
-            val toZeroPct = clampedSoc
-
-            val minsToLimit = ((toLimitPct / 100.0) * capacityWh) / powerW * 60.0
-            val minsToZero = ((toZeroPct / 100.0) * capacityWh) / powerW * 60.0
-
-            val withLimits = if (clampedSoc <= dischargeLimit) "Досягнуто" else formatDurationUk(minsToLimit)
-            val withoutLimits = if (clampedSoc <= 0) "Розряджено" else formatDurationUk(minsToZero)
+            val minsToZero = ((clampedSoc / 100.0) * capacityWh) / powerW * 60.0
+            val primaryValue = if (clampedSoc <= 0) "Розряджено" else formatDurationUk(minsToZero)
 
             return EnergyDurationsUi(
                 mode = mode,
                 cardTitle = "До розряду",
-                leftLabel = "З лімітами (до $dischargeLimit%)",
-                rightLabel = "Без лімітів (до 0%)",
-                withLimitsText = withLimits,
-                withoutLimitsText = withoutLimits,
-                compactSubText = "до $dischargeLimit% · без ліміту $withoutLimits"
+                leftLabel = "До 0%",
+                rightLabel = "Залишок енергії",
+                primaryValueText = primaryValue,
+                secondaryValueText = "$availableWh Вт·год",
+                compactSubText = "до 0% · ${formatPowerUk(netBatteryPower)}"
             )
         }
 
-        val isAtCharge = clampedSoc >= chargeLimit
-        val isAtDischarge = clampedSoc <= dischargeLimit
-        val remainingPct = max(0, 100 - clampedSoc)
-        val estTopOffMins = ((remainingPct / 100.0) * capacityWh) / 800.0 * 60.0
-        val availableWh = (((max(0, clampedSoc - dischargeLimit)) / 100.0) * capacityWh).roundToInt()
-
         return EnergyDurationsUi(
             mode = mode,
-            cardTitle = "Очікування",
-            leftLabel = when {
-                isAtCharge -> "Ліміт заряду"
-                isAtDischarge -> "Ліміт розряду"
-                else -> "Режим"
-            },
-            rightLabel = if (isAtCharge) "Без лімітів (до 100%)" else "Доступний запас",
-            withLimitsText = if (isAtCharge || isAtDischarge) "Досягнуто" else "Готово",
-            withoutLimitsText = if (isAtCharge) "ще ${formatDurationUk(estTopOffMins)}" else "$availableWh Вт·год",
-            compactSubText = if (isAtCharge) "ліміт $chargeLimit% досягнуто" else "запас $availableWh Вт·год"
+            cardTitle = "Стан батареї",
+            leftLabel = "Запас енергії",
+            rightLabel = "Ємність батареї",
+            primaryValueText = "$availableWh Вт·год",
+            secondaryValueText = "$capacityWh Вт·год",
+            compactSubText = "ємність $capacityWh Вт·год"
         )
     }
 
@@ -419,8 +387,6 @@ object MarstekStore {
         return JSONObject().apply {
             put("ip", config.ip)
             put("port", config.port)
-            put("dischargeLimit", config.dischargeLimit)
-            put("chargeLimit", config.chargeLimit)
             put("providerId", config.providerId)
             put("group", config.group)
         }.toString()

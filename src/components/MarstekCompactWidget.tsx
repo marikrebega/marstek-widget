@@ -3,7 +3,6 @@ import {
   evaluateOutageSchedule,
   getModeVisuals,
   getNetBatteryPower,
-  type BatteryLimits,
   type BatteryMode,
   type OutageSlot,
 } from '../types/marstek';
@@ -14,7 +13,6 @@ interface MarstekCompactWidgetProps {
   pvPower: number;
   onGridPower: number;
   offGridPower: number;
-  limits: BatteryLimits;
   outageSlots: OutageSlot[];
   tomorrowOutageSlots?: OutageSlot[];
   nowMinutes: number;
@@ -81,7 +79,6 @@ export function MarstekCompactWidget({
   pvPower,
   onGridPower,
   offGridPower,
-  limits,
   outageSlots,
   tomorrowOutageSlots = [],
   nowMinutes,
@@ -90,7 +87,7 @@ export function MarstekCompactWidget({
   const hasSoc = soc >= 0;
   const clampedSoc = hasSoc ? Math.max(0, Math.min(100, soc)) : 0;
   const netPower = getNetBatteryPower(pvPower, onGridPower, offGridPower);
-  const durations = computeEnergyDurations(clampedSoc, batCap, netPower, limits);
+  const durations = computeEnergyDurations(clampedSoc, batCap, netPower);
   const visuals = getModeVisuals(durations.mode);
   const outage = evaluateOutageSchedule(outageSlots, nowMinutes, tomorrowOutageSlots);
   const dashFilled = (clampedSoc / 100) * CIRCUMFERENCE;
@@ -156,7 +153,7 @@ export function MarstekCompactWidget({
             <span>{visuals.label}</span>
           </div>
           <div className="text-[20px] font-bold leading-tight tabular-nums">
-            {durations.withLimitsText}
+            {durations.primaryValueText}
           </div>
           <div className="text-[12px] text-[#A8B0B8] truncate tabular-nums">
             {durations.compactSubText}

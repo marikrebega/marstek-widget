@@ -4,7 +4,6 @@ import {
   formatPowerUk,
   getModeVisuals,
   getNetBatteryPower,
-  type BatteryLimits,
   type BatteryMode,
   type OutageSlot,
 } from '../types/marstek';
@@ -15,7 +14,6 @@ interface MarstekFullWidgetProps {
   pvPower: number;
   onGridPower: number;
   offGridPower: number;
-  limits: BatteryLimits;
   outageSlots: OutageSlot[];
   tomorrowOutageSlots?: OutageSlot[];
   outageGroupLabel?: string;
@@ -85,7 +83,6 @@ export function MarstekFullWidget({
   pvPower,
   onGridPower,
   offGridPower,
-  limits,
   outageSlots,
   tomorrowOutageSlots = [],
   outageGroupLabel,
@@ -97,13 +94,11 @@ export function MarstekFullWidget({
   const hasSoc = soc >= 0;
   const clampedSoc = hasSoc ? Math.max(0, Math.min(100, soc)) : 0;
   const netPower = getNetBatteryPower(pvPower, onGridPower, offGridPower);
-  const durations = computeEnergyDurations(clampedSoc, batCap, netPower, limits);
+  const durations = computeEnergyDurations(clampedSoc, batCap, netPower);
   const visuals = getModeVisuals(durations.mode);
   const outage = evaluateOutageSchedule(outageSlots, nowMinutes, tomorrowOutageSlots);
 
   const dashFilled = (clampedSoc / 100) * CIRCUMFERENCE;
-  const chargeMarkerDeg = (limits.chargeLimit / 100) * 360;
-  const dischargeMarkerDeg = (limits.dischargeLimit / 100) * 360;
 
   return (
     <div
@@ -142,7 +137,7 @@ export function MarstekFullWidget({
           height="200"
           viewBox="0 0 200 200"
           role="img"
-          aria-label={`Заряд ${clampedSoc} відсотків, ліміти ${limits.dischargeLimit} і ${limits.chargeLimit} відсотків`}
+          aria-label={`Заряд ${clampedSoc} відсотків`}
         >
           <circle
             cx="100"
@@ -164,26 +159,6 @@ export function MarstekFullWidget({
             transform="rotate(-90 100 100)"
             className="transition-[stroke-dasharray,stroke] duration-300"
           />
-          <line
-            x1="100"
-            y1="8"
-            x2="100"
-            y2="32"
-            stroke="#F2F4F5"
-            strokeWidth="3"
-            strokeLinecap="round"
-            transform={`rotate(${chargeMarkerDeg} 100 100)`}
-          />
-          <line
-            x1="100"
-            y1="8"
-            x2="100"
-            y2="32"
-            stroke="#F2F4F5"
-            strokeWidth="3"
-            strokeLinecap="round"
-            transform={`rotate(${dischargeMarkerDeg} 100 100)`}
-          />
         </svg>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -194,12 +169,6 @@ export function MarstekFullWidget({
             {hasSoc ? formatPowerUk(netPower) : '-- Вт'}
           </div>
         </div>
-      </div>
-
-      {/* Limits Legend */}
-      <div className="flex justify-center gap-5 text-[12px] text-[#A8B0B8] tabular-nums">
-        <span>Ліміт розряду: {limits.dischargeLimit}%</span>
-        <span>Ліміт заряду: {limits.chargeLimit}%</span>
       </div>
 
       {/* Charge / Discharge / Idle Estimate Card */}
@@ -213,7 +182,7 @@ export function MarstekFullWidget({
               {durations.leftLabel}
             </div>
             <div className="text-[22px] sm:text-[24px] font-bold leading-tight tabular-nums">
-              {durations.withLimitsText}
+              {durations.primaryValueText}
             </div>
           </div>
 
@@ -224,7 +193,7 @@ export function MarstekFullWidget({
               {durations.rightLabel}
             </div>
             <div className="text-[22px] sm:text-[24px] font-bold leading-tight text-[#C9CFD5] tabular-nums">
-              {durations.withoutLimitsText}
+              {durations.secondaryValueText}
             </div>
           </div>
         </div>

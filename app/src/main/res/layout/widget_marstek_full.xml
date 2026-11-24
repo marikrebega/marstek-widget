@@ -59,10 +59,10 @@
     <!-- Circular SOC Gauge -->
     <FrameLayout
         android:id="@+id/fullGaugeContainer"
-        android:layout_width="172dp"
-        android:layout_height="172dp"
+        android:layout_width="180dp"
+        android:layout_height="180dp"
         android:layout_gravity="center_horizontal"
-        android:layout_marginTop="8dp">
+        android:layout_marginTop="10dp">
 
         <ImageView
             android:id="@+id/fullGaugeImage"
@@ -85,7 +85,7 @@
                 android:includeFontPadding="false"
                 android:text="--%"
                 android:textColor="#F2F4F5"
-                android:textSize="40sp"
+                android:textSize="42sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -100,24 +100,11 @@
         </LinearLayout>
     </FrameLayout>
 
-    <!-- Limits Legend -->
-    <TextView
-        android:id="@+id/fullLimitsLegend"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:fontFeatureSettings="tnum"
-        android:gravity="center"
-        android:maxLines="1"
-        android:text="Ліміт розряду: 10%    Ліміт заряду: 90%"
-        android:textColor="#A8B0B8"
-        android:textSize="11sp" />
-
     <!-- Charge / Discharge / Idle Estimate Card -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="12dp"
         android:background="@drawable/widget_card_bg"
         android:orientation="vertical"
         android:padding="12dp">
@@ -127,7 +114,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:text="Очікування"
+            android:text="Стан батареї"
             android:textColor="#A8B0B8"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -150,19 +137,19 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:text="Режим"
+                    android:text="Запас енергії"
                     android:textColor="#A8B0B8"
                     android:textSize="11sp" />
 
                 <TextView
-                    android:id="@+id/fullWithLimitsValue"
+                    android:id="@+id/fullPrimaryValue"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:ellipsize="end"
                     android:fontFeatureSettings="tnum"
                     android:maxLines="1"
-                    android:text="Готово"
+                    android:text="0 Вт·год"
                     android:textColor="#F2F4F5"
                     android:textSize="18sp"
                     android:textStyle="bold" />
@@ -186,19 +173,19 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:text="Доступний запас"
+                    android:text="Ємність батареї"
                     android:textColor="#A8B0B8"
                     android:textSize="11sp" />
 
                 <TextView
-                    android:id="@+id/fullWithoutLimitsValue"
+                    android:id="@+id/fullSecondaryValue"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:ellipsize="end"
                     android:fontFeatureSettings="tnum"
                     android:maxLines="1"
-                    android:text="0 Вт·год"
+                    android:text="2560 Вт·год"
                     android:textColor="#C9CFD5"
                     android:textSize="18sp"
                     android:textStyle="bold" />

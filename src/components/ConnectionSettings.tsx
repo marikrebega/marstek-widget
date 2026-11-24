@@ -4,7 +4,6 @@ import {
   getBatteryMode,
   getModeVisuals,
   getNetBatteryPower,
-  type BatteryLimits,
   type MarstekLogEntry,
   type MarstekStatus,
   type OutageConfig,
@@ -24,7 +23,6 @@ interface ConnectionSettingsProps {
   port: string;
   ipError: string | null;
   testState: TestState;
-  limits: BatteryLimits;
   outageConfig: OutageConfig;
   outageProviders: OutageProviderInfo[];
   availableGroups: string[];
@@ -36,7 +34,6 @@ interface ConnectionSettingsProps {
   ipInputRef?: RefObject<HTMLInputElement | null>;
   onIpChange: (value: string) => void;
   onPortChange: (value: string) => void;
-  onLimitsChange: (limits: BatteryLimits) => void;
   onOutageConfigChange: (config: OutageConfig) => void;
   onRefreshOutages: () => void;
   onClearLogs: () => void;
@@ -49,7 +46,6 @@ export function ConnectionSettings({
   port,
   ipError,
   testState,
-  limits,
   outageConfig,
   outageProviders,
   availableGroups,
@@ -61,7 +57,6 @@ export function ConnectionSettings({
   ipInputRef,
   onIpChange,
   onPortChange,
-  onLimitsChange,
   onOutageConfigChange,
   onRefreshOutages,
   onClearLogs,
@@ -86,7 +81,7 @@ export function ConnectionSettings({
           Підключення Marstek Venus D
         </h1>
         <p className="mt-1 text-[13px] text-[#A8B0B8]">
-          Налаштуйте локальне UDP-з&apos;єднання, ліміти заряду/розряду, чергу відключень світла та переглядайте логи відповідей.
+          Налаштуйте локальне UDP-з&apos;єднання, чергу відключень світла та переглядайте логи відповідей.
         </p>
       </div>
 
@@ -362,55 +357,6 @@ export function ConnectionSettings({
 
       {/* Marstek Response Logs Panel (in App, not in widget) */}
       <MarstekLogsPanel logs={logs} onClearLogs={onClearLogs} />
-
-      {/* Battery Limits Card */}
-      <div className="rounded-[20px] bg-[#1B2025] border border-[#2A2F35] p-4 space-y-3">
-        <div className="text-sm font-semibold text-[#F2F4F5]">
-          Ліміти батареї на шкалі
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label
-              htmlFor="limit-discharge"
-              className="block text-xs text-[#A8B0B8] mb-1"
-            >
-              Ліміт розряду (%)
-            </label>
-            <input
-              id="limit-discharge"
-              type="number"
-              min={0}
-              max={50}
-              value={limits.dischargeLimit}
-              onChange={(e) => {
-                const val = Math.max(0, Math.min(50, Number(e.target.value) || 0));
-                onLimitsChange({ ...limits, dischargeLimit: val });
-              }}
-              className="w-full rounded-[12px] bg-[#101316] border border-[#2A2F35] px-3 py-2 text-sm text-[#F2F4F5] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#5AB0FF]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="limit-charge"
-              className="block text-xs text-[#A8B0B8] mb-1"
-            >
-              Ліміт заряду (%)
-            </label>
-            <input
-              id="limit-charge"
-              type="number"
-              min={50}
-              max={100}
-              value={limits.chargeLimit}
-              onChange={(e) => {
-                const val = Math.max(50, Math.min(100, Number(e.target.value) || 90));
-                onLimitsChange({ ...limits, chargeLimit: val });
-              }}
-              className="w-full rounded-[12px] bg-[#101316] border border-[#2A2F35] px-3 py-2 text-sm text-[#F2F4F5] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#3DDC84]"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* How to add widget to Home Screen */}
       <div className="rounded-[20px] bg-[#1B2025] border border-[#2A2F35] p-4 space-y-2">

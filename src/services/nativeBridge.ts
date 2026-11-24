@@ -9,8 +9,6 @@ interface MarstekNativeInterface {
   saveConfig?: (
     ip: string,
     port: number,
-    dischargeLimit: number,
-    chargeLimit: number,
     providerId: string,
     group: string
   ) => void;
@@ -53,8 +51,6 @@ export function hasNativeAndroidBridge(): boolean {
 export function syncConfigToNativeAndroid(params: {
   ip: string;
   port: number;
-  dischargeLimit: number;
-  chargeLimit: number;
   providerId: string;
   group: string;
 }): void {
@@ -62,8 +58,6 @@ export function syncConfigToNativeAndroid(params: {
     window.MarstekNative.saveConfig(
       params.ip,
       params.port,
-      params.dischargeLimit,
-      params.chargeLimit,
       params.providerId,
       params.group
     );

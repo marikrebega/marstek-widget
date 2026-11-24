@@ -54,19 +54,9 @@ export interface OutageScheduleData {
   sourceUrl: string;
 }
 
-export interface BatteryLimits {
-  dischargeLimit: number; // % e.g. 10
-  chargeLimit: number;    // % e.g. 90
-}
-
 export const DEFAULT_OUTAGE_CONFIG: OutageConfig = {
   providerId: 'prykarpattya-oe',
   group: '1.1',
-};
-
-export const DEFAULT_LIMITS: BatteryLimits = {
-  dischargeLimit: 10,
-  chargeLimit: 90,
 };
 
 export function getKyivMinutes(date: Date = new Date()): number {
@@ -145,12 +135,11 @@ export function formatDurationUk(totalMinutes: number): string {
 export function computeEnergyDurations(
   soc: number,
   batCapWh: number,
-  netBatteryPower: number,
-  limits: BatteryLimits
+  netBatteryPower: number
 ): {
   mode: BatteryMode;
-  withLimitsText: string;
-  withoutLimitsText: string;
+  primaryValueText: string;
+  secondaryValueText: string;
   compactSubText: string;
   leftLabel: string;
   rightLabel: string;
@@ -159,77 +148,52 @@ export function computeEnergyDurations(
   const mode = getBatteryMode(netBatteryPower);
   const capacityWh = batCapWh > 0 ? batCapWh : 2560;
   const clampedSoc = Math.max(0, Math.min(100, soc));
+  const availableWh = Math.round((clampedSoc / 100) * capacityWh);
+  const remainingWh = Math.max(0, capacityWh - availableWh);
 
   if (mode === 'charging') {
     const powerW = Math.max(1, Math.abs(netBatteryPower));
-    const toLimitPct = Math.max(0, limits.chargeLimit - clampedSoc);
     const toFullPct = Math.max(0, 100 - clampedSoc);
-
-    const minsToLimit = ((toLimitPct / 100) * capacityWh) / powerW * 60;
     const minsToFull = ((toFullPct / 100) * capacityWh) / powerW * 60;
-
-    const withLimitsText =
-      clampedSoc >= limits.chargeLimit ? 'Досягнуто' : formatDurationUk(minsToLimit);
-    const withoutLimitsText =
+    const primaryValueText =
       clampedSoc >= 100 ? 'Заряджено' : formatDurationUk(minsToFull);
 
     return {
       mode,
       cardTitle: 'До повного заряду',
-      leftLabel: `З лімітами (до ${limits.chargeLimit}%)`,
-      rightLabel: 'Без лімітів (до 100%)',
-      withLimitsText,
-      withoutLimitsText,
-      compactSubText: `до ${limits.chargeLimit}% · без ліміту ${withoutLimitsText}`,
+      leftLabel: 'До 100%',
+      rightLabel: 'Залишилось зарядити',
+      primaryValueText,
+      secondaryValueText: `${remainingWh} Вт·год`,
+      compactSubText: `до 100% · ${formatPowerUk(netBatteryPower)}`,
     };
   }
 
   if (mode === 'discharging') {
     const powerW = Math.max(1, Math.abs(netBatteryPower));
-    const toLimitPct = Math.max(0, clampedSoc - limits.dischargeLimit);
-    const toZeroPct = clampedSoc;
-
-    const minsToLimit = ((toLimitPct / 100) * capacityWh) / powerW * 60;
-    const minsToZero = ((toZeroPct / 100) * capacityWh) / powerW * 60;
-
-    const withLimitsText =
-      clampedSoc <= limits.dischargeLimit ? 'Досягнуто' : formatDurationUk(minsToLimit);
-    const withoutLimitsText =
+    const minsToZero = ((clampedSoc / 100) * capacityWh) / powerW * 60;
+    const primaryValueText =
       clampedSoc <= 0 ? 'Розряджено' : formatDurationUk(minsToZero);
 
     return {
       mode,
       cardTitle: 'До розряду',
-      leftLabel: `З лімітами (до ${limits.dischargeLimit}%)`,
-      rightLabel: 'Без лімітів (до 0%)',
-      withLimitsText,
-      withoutLimitsText,
-      compactSubText: `до ${limits.dischargeLimit}% · без ліміту ${withoutLimitsText}`,
+      leftLabel: 'До 0%',
+      rightLabel: 'Залишок енергії',
+      primaryValueText,
+      secondaryValueText: `${availableWh} Вт·год`,
+      compactSubText: `до 0% · ${formatPowerUk(netBatteryPower)}`,
     };
   }
 
-  const isAtChargeLimit = clampedSoc >= limits.chargeLimit;
-  const isAtDischargeLimit = clampedSoc <= limits.dischargeLimit;
-  const remainingPct = Math.max(0, 100 - clampedSoc);
-  const estTopOffMins = ((remainingPct / 100) * capacityWh) / 800 * 60;
-  const availableWh = Math.round(((Math.max(0, clampedSoc - limits.dischargeLimit)) / 100) * capacityWh);
-
   return {
     mode,
-    cardTitle: 'Очікування',
-    leftLabel: isAtChargeLimit
-      ? 'Ліміт заряду'
-      : isAtDischargeLimit
-      ? 'Ліміт розряду'
-      : 'Режим',
-    rightLabel: isAtChargeLimit ? 'Без лімітів (до 100%)' : 'Доступний запас',
-    withLimitsText: isAtChargeLimit || isAtDischargeLimit ? 'Досягнуто' : 'Готово',
-    withoutLimitsText: isAtChargeLimit
-      ? `ще ${formatDurationUk(estTopOffMins)}`
-      : `${availableWh} Вт·год`,
-    compactSubText: isAtChargeLimit
-      ? `ліміт ${limits.chargeLimit}% досягнуто`
-      : `запас ${availableWh} Вт·год`,
+    cardTitle: 'Стан батареї',
+    leftLabel: 'Запас енергії',
+    rightLabel: 'Ємність батареї',
+    primaryValueText: `${availableWh} Вт·год`,
+    secondaryValueText: `${capacityWh} Вт·год`,
+    compactSubText: `ємність ${capacityWh} Вт·год`,
   };
 }
 

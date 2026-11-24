@@ -10,7 +10,6 @@ import {
   saveCachedOutages,
   saveDeviceConfig,
   saveLatestStatus,
-  saveLimits,
   saveOutageConfig,
   saveWidgetSize,
   type WidgetSizeMode,
@@ -19,7 +18,6 @@ import {
   formatTimeHHMM,
   formatTimeHHMMSS,
   getKyivMinutes,
-  type BatteryLimits,
   type MarstekLogEntry,
   type OutageConfig,
   type OutageProviderInfo,
@@ -55,7 +53,6 @@ export function App() {
     initialPrefs.current.lastFullStatus?.offGridPower ?? 0
   );
 
-  const [limits, setLimits] = useState<BatteryLimits>(initialPrefs.current.limits);
   const [outageConfig, setOutageConfig] = useState<OutageConfig>(
     initialPrefs.current.outageConfig
   );
@@ -144,19 +141,10 @@ export function App() {
     syncConfigToNativeAndroid({
       ip: savedIp,
       port: savedPort,
-      dischargeLimit: limits.dischargeLimit,
-      chargeLimit: limits.chargeLimit,
       providerId: outageConfig.providerId,
       group: outageConfig.group,
     });
-  }, [
-    savedIp,
-    savedPort,
-    limits.dischargeLimit,
-    limits.chargeLimit,
-    outageConfig.providerId,
-    outageConfig.group,
-  ]);
+  }, [savedIp, savedPort, outageConfig.providerId, outageConfig.group]);
 
   useEffect(() => {
     void fetchOutageProviders()
@@ -343,19 +331,12 @@ export function App() {
     syncConfigToNativeAndroid({
       ip: trimmedIp,
       port: parsedPort,
-      dischargeLimit: limits.dischargeLimit,
-      chargeLimit: limits.chargeLimit,
       providerId: outageConfig.providerId,
       group: outageConfig.group,
     });
 
     showToast('Налаштування збережено! Оновлення віджета...');
     void refreshWidget(trimmedIp, parsedPort);
-  };
-
-  const handleLimitsChange = (nextLimits: BatteryLimits) => {
-    setLimits(nextLimits);
-    saveLimits(nextLimits);
   };
 
   const handleOutageConfigChange = (nextConfig: OutageConfig) => {
@@ -457,7 +438,6 @@ export function App() {
                   pvPower={pvPower}
                   onGridPower={onGridPower}
                   offGridPower={offGridPower}
-                  limits={limits}
                   outageSlots={apiOutageSlots}
                   tomorrowOutageSlots={tomorrowApiOutageSlots}
                   outageGroupLabel={outageConfig.group}
@@ -473,7 +453,6 @@ export function App() {
                   pvPower={pvPower}
                   onGridPower={onGridPower}
                   offGridPower={offGridPower}
-                  limits={limits}
                   outageSlots={apiOutageSlots}
                   tomorrowOutageSlots={tomorrowApiOutageSlots}
                   nowMinutes={nowMinutes}
@@ -483,14 +462,13 @@ export function App() {
             </div>
           </section>
 
-          {/* Right Column: Settings, Outages API, Logs, Limits */}
+          {/* Right Column: Settings, Outages API, Logs */}
           <section id="connection-settings">
             <ConnectionSettings
               ip={ipInput}
               port={portInput}
               ipError={ipError}
               testState={testState}
-              limits={limits}
               outageConfig={outageConfig}
               outageProviders={outageProviders}
               availableGroups={availableGroups}
@@ -505,7 +483,6 @@ export function App() {
                 if (ipError) setIpError(null);
               }}
               onPortChange={setPortInput}
-              onLimitsChange={handleLimitsChange}
               onOutageConfigChange={handleOutageConfigChange}
               onRefreshOutages={() =>
                 void loadOutageSchedule(

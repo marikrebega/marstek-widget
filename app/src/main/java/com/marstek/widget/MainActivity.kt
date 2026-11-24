@@ -94,8 +94,6 @@ class MainActivity : AppCompatActivity() {
         fun saveConfig(
             ip: String,
             port: Int,
-            dischargeLimit: Int,
-            chargeLimit: Int,
             providerId: String,
             group: String
         ) {
@@ -103,8 +101,6 @@ class MainActivity : AppCompatActivity() {
                 context = this@MainActivity,
                 ip = ip,
                 port = port,
-                dischargeLimit = dischargeLimit,
-                chargeLimit = chargeLimit,
                 providerId = providerId,
                 group = group
             )

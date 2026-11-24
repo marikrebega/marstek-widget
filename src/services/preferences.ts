@@ -1,7 +1,5 @@
 import {
-  DEFAULT_LIMITS,
   DEFAULT_OUTAGE_CONFIG,
-  type BatteryLimits,
   type MarstekStatus,
   type OutageConfig,
   type OutageSlot,
@@ -16,7 +14,6 @@ const STORAGE_KEYS = {
   LAST_GRID: 'marstek_pref_last_grid',
   LAST_UPDATE_TIME: 'marstek_pref_last_update_time',
   LAST_FULL_STATUS: 'marstek_pref_last_full_status',
-  LIMITS: 'marstek_pref_limits',
   OUTAGE_CONFIG: 'marstek_pref_outage_config',
   CACHED_OUTAGES_TODAY: 'marstek_pref_cached_outages_today',
   CACHED_OUTAGES_TOMORROW: 'marstek_pref_cached_outages_tomorrow',
@@ -34,7 +31,6 @@ export interface StoredPreferences {
   lastCachedGrid: number;
   lastUpdateTime: string;
   lastFullStatus: MarstekStatus | null;
-  limits: BatteryLimits;
   outageConfig: OutageConfig;
   cachedOutageToday: OutageSlot[];
   cachedOutageTomorrow: OutageSlot[];
@@ -51,7 +47,6 @@ export function loadPreferences(): StoredPreferences {
     const rawGrid = localStorage.getItem(STORAGE_KEYS.LAST_GRID);
     const rawTime = localStorage.getItem(STORAGE_KEYS.LAST_UPDATE_TIME);
     const rawFull = localStorage.getItem(STORAGE_KEYS.LAST_FULL_STATUS);
-    const rawLimits = localStorage.getItem(STORAGE_KEYS.LIMITS);
     const rawOutageConfig = localStorage.getItem(STORAGE_KEYS.OUTAGE_CONFIG);
     const rawToday = localStorage.getItem(STORAGE_KEYS.CACHED_OUTAGES_TODAY);
     const rawTomorrow = localStorage.getItem(STORAGE_KEYS.CACHED_OUTAGES_TOMORROW);
@@ -69,24 +64,6 @@ export function loadPreferences(): StoredPreferences {
         lastFullStatus = JSON.parse(rawFull) as MarstekStatus;
       } catch {
         lastFullStatus = null;
-      }
-    }
-
-    let limits: BatteryLimits = DEFAULT_LIMITS;
-    if (rawLimits) {
-      try {
-        const parsed = JSON.parse(rawLimits) as Partial<BatteryLimits>;
-        if (
-          typeof parsed.dischargeLimit === 'number' &&
-          typeof parsed.chargeLimit === 'number'
-        ) {
-          limits = {
-            dischargeLimit: parsed.dischargeLimit,
-            chargeLimit: parsed.chargeLimit,
-          };
-        }
-      } catch {
-        limits = DEFAULT_LIMITS;
       }
     }
 
@@ -137,7 +114,6 @@ export function loadPreferences(): StoredPreferences {
       lastCachedGrid: Number.isFinite(parsedGrid) ? parsedGrid : 0,
       lastUpdateTime: rawTime || '--:--',
       lastFullStatus,
-      limits,
       outageConfig,
       cachedOutageToday,
       cachedOutageTomorrow,
@@ -153,7 +129,6 @@ export function loadPreferences(): StoredPreferences {
       lastCachedGrid: 0,
       lastUpdateTime: '--:--',
       lastFullStatus: null,
-      limits: DEFAULT_LIMITS,
       outageConfig: DEFAULT_OUTAGE_CONFIG,
       cachedOutageToday: [],
       cachedOutageTomorrow: [],
@@ -166,14 +141,6 @@ export function saveDeviceConfig(ip: string, port: number): void {
   try {
     localStorage.setItem(STORAGE_KEYS.DEVICE_IP, ip.trim());
     localStorage.setItem(STORAGE_KEYS.DEVICE_PORT, String(port));
-  } catch {
-    // Ignore storage quota errors
-  }
-}
-
-export function saveLimits(limits: BatteryLimits): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.LIMITS, JSON.stringify(limits));
   } catch {
     // Ignore storage quota errors
   }

@@ -4,13 +4,10 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
-import kotlin.math.cos
-import kotlin.math.sin
 
 object WidgetGraphics {
 
     private const val TRACK_COLOR = 0xFF2A2F35.toInt()
-    private const val TICK_COLOR = 0xFFF2F4F5.toInt()
     private const val OUTAGE_COLOR = 0xFFFFC24D.toInt()
     private const val NOW_MARKER_COLOR = 0xFFFFFFFF.toInt()
 
@@ -18,9 +15,6 @@ object WidgetGraphics {
         soc: Int,
         hasSoc: Boolean,
         mode: BatteryMode,
-        dischargeLimit: Int,
-        chargeLimit: Int,
-        showLimitTicks: Boolean,
         sizePx: Int,
         strokeWidthRatio: Float
     ): Bitmap {
@@ -51,33 +45,6 @@ object WidgetGraphics {
             }
             val sweepAngle = (clampedSoc / 100f) * 360f
             canvas.drawArc(arcBounds, -90f, sweepAngle, false, arcPaint)
-        }
-
-        if (showLimitTicks) {
-            val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                color = TICK_COLOR
-                this.strokeWidth = (sizePx * 0.016f).coerceAtLeast(3f)
-                strokeCap = Paint.Cap.ROUND
-            }
-            val innerR = radius - strokeWidth * 0.85f
-            val outerR = radius + strokeWidth * 0.85f
-
-            fun drawTick(pct: Int) {
-                val angleRad = Math.toRadians((-90.0) + (pct.coerceIn(0, 100) / 100.0) * 360.0)
-                val cosA = cos(angleRad).toFloat()
-                val sinA = sin(angleRad).toFloat()
-                canvas.drawLine(
-                    cx + innerR * cosA,
-                    cy + innerR * sinA,
-                    cx + outerR * cosA,
-                    cy + outerR * sinA,
-                    tickPaint
-                )
-            }
-
-            drawTick(dischargeLimit)
-            drawTick(chargeLimit)
         }
 
         return bitmap
