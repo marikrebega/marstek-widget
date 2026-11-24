@@ -1,0 +1,5 @@
+{
+  "name": "Marstek Venus Widget",
+  "description": "Real-time status widget and local UDP connection monitor for Marstek Venus D energy storage systems.",
+  "requestFramePermissions": []
+}
