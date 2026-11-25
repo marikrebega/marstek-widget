@@ -215,12 +215,26 @@ export function savePreviewUiState(
 
 export function saveLatestStatus(status: MarstekStatus, formattedTime: string): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.LAST_SOC, String(status.batSoc));
-    localStorage.setItem(STORAGE_KEYS.LAST_CAP, String(status.batCap));
-    localStorage.setItem(STORAGE_KEYS.LAST_PV, String(status.pvPower));
-    localStorage.setItem(STORAGE_KEYS.LAST_GRID, String(status.onGridPower));
+    let mergedStatus = status;
+    if (status.batTemp === undefined) {
+      const prevRaw = localStorage.getItem(STORAGE_KEYS.LAST_FULL_STATUS);
+      if (prevRaw) {
+        try {
+          const prev = JSON.parse(prevRaw) as Partial<MarstekStatus>;
+          if (typeof prev.batTemp === 'number') {
+            mergedStatus = { ...status, batTemp: prev.batTemp };
+          }
+        } catch {
+          // Ignore parse error
+        }
+      }
+    }
+    localStorage.setItem(STORAGE_KEYS.LAST_SOC, String(mergedStatus.batSoc));
+    localStorage.setItem(STORAGE_KEYS.LAST_CAP, String(mergedStatus.batCap));
+    localStorage.setItem(STORAGE_KEYS.LAST_PV, String(mergedStatus.pvPower));
+    localStorage.setItem(STORAGE_KEYS.LAST_GRID, String(mergedStatus.onGridPower));
     localStorage.setItem(STORAGE_KEYS.LAST_UPDATE_TIME, formattedTime);
-    localStorage.setItem(STORAGE_KEYS.LAST_FULL_STATUS, JSON.stringify(status));
+    localStorage.setItem(STORAGE_KEYS.LAST_FULL_STATUS, JSON.stringify(mergedStatus));
   } catch {
     // Ignore storage quota errors
   }

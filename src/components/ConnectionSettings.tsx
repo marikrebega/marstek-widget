@@ -202,14 +202,19 @@ export function ConnectionSettings({
                 )}
                 <dt className="text-[#A8B0B8]">Заряд (SOC):</dt>
                 <dd>{testState.status.batSoc}%</dd>
-                {typeof testState.status.batTemp === 'number' && (
-                  <>
-                    <dt className="text-[#A8B0B8]">Температура:</dt>
-                    <dd style={{ color: getTemperatureVisuals(testState.status.batTemp).color }}>
-                      {getTemperatureVisuals(testState.status.batTemp).label}
-                    </dd>
-                  </>
-                )}
+                <dt className="text-[#A8B0B8]">Температура:</dt>
+                <dd
+                  style={{
+                    color:
+                      typeof testState.status.batTemp === 'number'
+                        ? getTemperatureVisuals(testState.status.batTemp).color
+                        : '#8FA3B8',
+                  }}
+                >
+                  {typeof testState.status.batTemp === 'number'
+                    ? getTemperatureVisuals(testState.status.batTemp).label
+                    : '--°C (немає у відповіді Bat.GetStatus)'}
+                </dd>
                 <dt className="text-[#A8B0B8]">Ємність батареї:</dt>
                 <dd>{testState.status.batCap} Вт·год</dd>
                 <dt className="text-[#A8B0B8]">Батарея (нетто):</dt>

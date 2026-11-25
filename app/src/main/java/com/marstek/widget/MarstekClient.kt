@@ -1,5 +1,9 @@
 package com.marstek.widget
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.DatagramPacket
@@ -28,14 +32,34 @@ object MarstekClient {
         val tomorrowJson: String
     )
 
+    private fun extractResultObject(root: JSONObject): JSONObject {
+        root.optJSONObject("result")?.let { return it }
+        root.optJSONArray("result")?.optJSONObject(0)?.let { return it }
+        root.optJSONObject("last_success_payload")?.optJSONObject("result")?.let { return it }
+        return root
+    }
+
     private fun parseTempC(obj: JSONObject?, vararg keys: String): Float? {
         if (obj == null) return null
-        for (key in keys) {
+        val candidates = keys.toMutableList()
+        val iter = obj.keys()
+        while (iter.hasNext()) {
+            val k = iter.next()
+            if (k.contains("temp", ignoreCase = true) && !candidates.contains(k)) {
+                candidates.add(k)
+            }
+        }
+        for (key in candidates) {
             if (!obj.has(key) || obj.isNull(key)) continue
             val raw = obj.opt(key)
             val parsed = when (raw) {
                 is Number -> raw.toFloat()
-                is String -> raw.trim().toFloatOrNull()
+                is String -> raw.trim()
+                    .replace("°C", "", ignoreCase = true)
+                    .replace("℃", "")
+                    .replace(",", ".")
+                    .trim()
+                    .toFloatOrNull()
                 else -> null
             }
             if (parsed != null && !parsed.isNaN() && !parsed.isInfinite()) {
@@ -46,11 +70,51 @@ object MarstekClient {
         return null
     }
 
-    private fun sendUdpCommand(ip: String, port: Int, payload: String, timeoutMs: Int): String {
+    @Suppress("DEPRECATION")
+    private fun findWifiNetwork(context: Context?): Network? {
+        if (context == null) return null
+        return try {
+            val cm = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return null
+            val active = cm.activeNetwork
+            val activeCaps = active?.let { cm.getNetworkCapabilities(it) }
+            if (active != null && activeCaps != null &&
+                activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                activeCaps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            ) {
+                return active
+            }
+            for (net in cm.allNetworks) {
+                val caps = cm.getNetworkCapabilities(net) ?: continue
+                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                ) {
+                    return net
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun sendUdpCommand(
+        ip: String,
+        port: Int,
+        payload: String,
+        timeoutMs: Int,
+        wifiNetwork: Network? = null
+    ): String {
         var socket: DatagramSocket? = null
         return try {
             val address = InetAddress.getByName(ip)
             socket = DatagramSocket().apply { soTimeout = timeoutMs }
+            if (wifiNetwork != null) {
+                try {
+                    wifiNetwork.bindSocket(socket)
+                } catch (_: Exception) {
+                }
+            }
             val sendData = payload.toByteArray(Charsets.UTF_8)
             socket.send(DatagramPacket(sendData, sendData.size, address, port))
 
@@ -66,11 +130,14 @@ object MarstekClient {
     fun queryMarstekStatus(
         ip: String,
         port: Int,
-        includeOptionalDetails: Boolean = true
+        includeOptionalDetails: Boolean = true,
+        context: Context? = null,
+        quickMode: Boolean = false
     ): UdpQueryOutcome {
         val startedAt = System.currentTimeMillis()
         val cleanIp = ip.trim()
         val cleanPort = if (port in 1..65535) port else 30000
+        val wifiNetwork = findWifiNetwork(context)
 
         if (cleanIp.isEmpty()) {
             val errJson = JSONObject().apply {
@@ -84,10 +151,12 @@ object MarstekClient {
         val requestPayload = "{\"id\": 1, \"method\": \"ES.GetStatus\", \"params\": {\"id\": 0}}"
         var lastError: String? = null
         var rawReply: String? = null
+        val maxAttempts = if (quickMode) 2 else 3
+        val socketTimeoutMs = if (quickMode) 1800 else 3500
 
-        for (attempt in 0..2) {
+        for (attempt in 0 until maxAttempts) {
             try {
-                val reply = sendUdpCommand(cleanIp, cleanPort, requestPayload, 3500)
+                val reply = sendUdpCommand(cleanIp, cleanPort, requestPayload, socketTimeoutMs, wifiNetwork)
                 rawReply = reply
                 val root = JSONObject(reply)
                 if (root.has("error") && !root.isNull("error")) {
@@ -102,59 +171,81 @@ object MarstekClient {
                     return UdpQueryOutcome(errJson, null)
                 }
 
-                val result = when {
-                    root.has("result") -> root.getJSONObject("result")
-                    root.has("last_success_payload") ->
-                        root.getJSONObject("last_success_payload").optJSONObject("result") ?: root
-                    else -> root
-                }
+                val result = extractResultObject(root)
 
                 val deviceName = root.optString("src", "").trim()
                 var batCap = result.optInt("bat_cap", 0)
-                var batTemp = parseTempC(result, "bat_temp", "temp")
+                var batTemp = parseTempC(result, "bat_temp", "temp", "temperature", "cell_temp", "bms_temp", "bat_t", "mos_temp", "env_temp")
                 var workMode = ""
                 val extraLogs = JSONArray()
 
                 if (includeOptionalDetails) {
-                    try {
-                        Thread.sleep(120)
-                        val batReply = sendUdpCommand(
-                            cleanIp,
-                            cleanPort,
-                            "{\"id\": 2, \"method\": \"Bat.GetStatus\", \"params\": {\"id\": 0}}",
-                            1500
-                        )
-                        extraLogs.put(JSONObject().apply {
-                            put("method", "Bat.GetStatus")
-                            put("rawResponse", batReply)
-                        })
-                        val batRes = JSONObject(batReply).optJSONObject("result")
-                        if (batCap <= 0 && batRes != null) {
-                            batCap = batRes.optInt("rated_capacity", 0)
+                    val batAttempts = if (quickMode) 2 else 2
+                    val batTimeoutMs = if (quickMode) 1700 else 2200
+                    var batLastError: String? = null
+                    var batSucceeded = false
+
+                    for (batAttempt in 0 until batAttempts) {
+                        try {
+                            Thread.sleep(250)
+                            val batReply = sendUdpCommand(
+                                cleanIp,
+                                cleanPort,
+                                "{\"id\": 2, \"method\": \"Bat.GetStatus\", \"params\": {\"id\": 0}}",
+                                batTimeoutMs,
+                                wifiNetwork
+                            )
+                            extraLogs.put(JSONObject().apply {
+                                put("method", "Bat.GetStatus")
+                                put("rawResponse", batReply)
+                            })
+                            val batRoot = JSONObject(batReply)
+                            if (!batRoot.has("error") || batRoot.isNull("error")) {
+                                val batRes = extractResultObject(batRoot)
+                                if (batCap <= 0) {
+                                    batCap = batRes.optInt("rated_capacity", 0)
+                                }
+                                if (batTemp == null) {
+                                    batTemp = parseTempC(batRes, "bat_temp", "temp", "temperature", "cell_temp", "bms_temp", "bat_t", "mos_temp", "env_temp")
+                                }
+                                batSucceeded = true
+                                break
+                            } else {
+                                batLastError = batReply
+                                break
+                            }
+                        } catch (e: Exception) {
+                            batLastError = e.message ?: "Bat.GetStatus timeout"
                         }
-                        if (batTemp == null && batRes != null) {
-                            batTemp = parseTempC(batRes, "bat_temp", "temp")
-                        }
-                    } catch (_: Exception) {
                     }
 
-                    try {
-                        Thread.sleep(120)
-                        val modeReply = sendUdpCommand(
-                            cleanIp,
-                            cleanPort,
-                            "{\"id\": 3, \"method\": \"ES.GetMode\", \"params\": {\"id\": 0}}",
-                            1500
-                        )
+                    if (!batSucceeded && batLastError != null && !batLastError.trim().startsWith("{")) {
                         extraLogs.put(JSONObject().apply {
-                            put("method", "ES.GetMode")
-                            put("rawResponse", modeReply)
+                            put("method", "Bat.GetStatus")
+                            put("rawResponse", "ERROR: $batLastError")
                         })
-                        val modeRes = JSONObject(modeReply).optJSONObject("result")
-                        if (modeRes != null) {
-                            workMode = modeRes.optString("mode", "").trim()
+                    }
+
+                    if (!quickMode) {
+                        try {
+                            Thread.sleep(120)
+                            val modeReply = sendUdpCommand(
+                                cleanIp,
+                                cleanPort,
+                                "{\"id\": 3, \"method\": \"ES.GetMode\", \"params\": {\"id\": 0}}",
+                                1400,
+                                wifiNetwork
+                            )
+                            extraLogs.put(JSONObject().apply {
+                                put("method", "ES.GetMode")
+                                put("rawResponse", modeReply)
+                            })
+                            val modeRes = JSONObject(modeReply).optJSONObject("result")
+                            if (modeRes != null) {
+                                workMode = modeRes.optString("mode", "").trim()
+                            }
+                        } catch (_: Exception) {
                         }
-                    } catch (_: Exception) {
                     }
                 }
 
@@ -208,21 +299,24 @@ object MarstekClient {
             }
         }
 
-        try {
-            val probeReply = sendUdpCommand(
-                cleanIp,
-                cleanPort,
-                "{\"id\": 0, \"method\": \"Marstek.GetDevice\", \"params\": {\"ble_mac\": \"0\"}}",
-                2500
-            )
-            val errJson = JSONObject().apply {
-                put("error", "Device responded to Marstek.GetDevice ($probeReply), but ES.GetStatus timed out.")
-                put("rawResponse", probeReply)
-                put("method", "Marstek.GetDevice")
-                put("durationMs", System.currentTimeMillis() - startedAt)
-            }.toString()
-            return UdpQueryOutcome(errJson, null)
-        } catch (_: Exception) {
+        if (!quickMode) {
+            try {
+                val probeReply = sendUdpCommand(
+                    cleanIp,
+                    cleanPort,
+                    "{\"id\": 0, \"method\": \"Marstek.GetDevice\", \"params\": {\"ble_mac\": \"0\"}}",
+                    2500,
+                    wifiNetwork
+                )
+                val errJson = JSONObject().apply {
+                    put("error", "Device responded to Marstek.GetDevice ($probeReply), but ES.GetStatus timed out.")
+                    put("rawResponse", probeReply)
+                    put("method", "Marstek.GetDevice")
+                    put("durationMs", System.currentTimeMillis() - startedAt)
+                }.toString()
+                return UdpQueryOutcome(errJson, null)
+            } catch (_: Exception) {
+            }
         }
 
         val errJson = JSONObject().apply {

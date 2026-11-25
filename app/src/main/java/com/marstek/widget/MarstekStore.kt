@@ -152,7 +152,7 @@ object MarstekStore {
     fun saveStatus(context: Context, status: MarstekStatusData) {
         val timeText = ZonedDateTime.now(ZoneId.of("Europe/Kyiv"))
             .format(DateTimeFormatter.ofPattern("HH:mm"))
-        prefs(context).edit()
+        val editor = prefs(context).edit()
             .putInt(KEY_LAST_SOC, status.batSoc)
             .putInt(KEY_LAST_CAP, status.batCap)
             .putInt(KEY_LAST_PV, status.pvPower)
@@ -160,10 +160,12 @@ object MarstekStore {
             .putInt(KEY_LAST_OFFGRID, status.offGridPower)
             .putString(KEY_LAST_DEVICE, status.deviceName)
             .putString(KEY_LAST_WORK_MODE, status.workMode)
-            .putFloat(KEY_LAST_TEMP, status.batTemp ?: Float.NaN)
             .putString(KEY_LAST_UPDATE, timeText)
             .putBoolean(KEY_LAST_ERROR, false)
-            .apply()
+        if (status.batTemp != null) {
+            editor.putFloat(KEY_LAST_TEMP, status.batTemp)
+        }
+        editor.apply()
     }
 
     fun markStatusError(context: Context) {

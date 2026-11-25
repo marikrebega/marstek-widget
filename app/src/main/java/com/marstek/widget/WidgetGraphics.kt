@@ -76,7 +76,7 @@ object WidgetGraphics {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        val barHeight = heightPx * 0.44f
+        val barHeight = heightPx * 0.42f
         val barTop = 2f
         val barBottom = barTop + barHeight
         val cornerRadius = barHeight * 0.45f
@@ -189,11 +189,11 @@ object WidgetGraphics {
         // Tick labels row below the bar
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = TICK_TEXT_COLOR
-            textSize = heightPx * 0.32f
+            textSize = heightPx * 0.28f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
             textAlign = Paint.Align.CENTER
         }
-        val labelY = heightPx - 4f
+        val labelY = heightPx - 7f
 
         val firstTick = ceil(windowStartHour.toDouble() / stepHours).toInt() * stepHours
         val lastTick = floor(windowEndHour.toDouble() / stepHours).toInt() * stepHours

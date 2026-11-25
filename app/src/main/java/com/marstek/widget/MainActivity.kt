@@ -160,7 +160,9 @@ class MainActivity : AppCompatActivity() {
                     val outcome = MarstekClient.queryMarstekStatus(
                         ip = ip,
                         port = port,
-                        includeOptionalDetails = true
+                        includeOptionalDetails = true,
+                        context = this@MainActivity,
+                        quickMode = false
                     )
                     if (outcome.status != null) {
                         MarstekStore.saveStatus(this@MainActivity, outcome.status)

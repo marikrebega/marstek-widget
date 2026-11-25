@@ -195,7 +195,7 @@ export function App() {
         setPvPower(outcome.status.pvPower);
         setOnGridPower(outcome.status.onGridPower);
         setOffGridPower(outcome.status.offGridPower);
-        setBatTemp(outcome.status.batTemp);
+        setBatTemp((prev) => outcome.status.batTemp ?? prev);
         setLastUpdateTime(formatted);
         setIsError(false);
 
@@ -208,10 +208,13 @@ export function App() {
         });
         if (outcome.extraLogs) {
           for (const extra of outcome.extraLogs) {
+            const isErrLog =
+              extra.rawResponse.startsWith('ERROR:') ||
+              extra.rawResponse.includes('"error"');
             appendLog({
               target: `${targetIp}:${targetPort}`,
               method: extra.method,
-              ok: true,
+              ok: !isErrLog,
               durationMs: outcome.durationMs,
               rawPayload: extra.rawResponse,
             });
@@ -311,10 +314,13 @@ export function App() {
       });
       if (outcome.extraLogs) {
         for (const extra of outcome.extraLogs) {
+          const isErrLog =
+            extra.rawResponse.startsWith('ERROR:') ||
+            extra.rawResponse.includes('"error"');
           appendLog({
             target: `${trimmedIp}:${parsedPort}`,
             method: extra.method,
-            ok: true,
+            ok: !isErrLog,
             durationMs: outcome.durationMs,
             rawPayload: extra.rawResponse,
           });

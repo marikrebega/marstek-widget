@@ -68,7 +68,13 @@ function toTempC(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     num = value;
   } else if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value);
+    const cleaned = value
+      .trim()
+      .replace(/°C/gi, '')
+      .replace(/℃/g, '')
+      .replace(',', '.')
+      .trim();
+    const parsed = Number(cleaned);
     if (Number.isFinite(parsed)) {
       num = parsed;
     }
@@ -76,6 +82,48 @@ function toTempC(value: unknown): number | undefined {
   if (num === undefined) return undefined;
   const normalized = num > 120 ? num / 10 : num;
   return Math.round(normalized * 10) / 10;
+}
+
+function extractResultRecord(root: RawMarstekPayload): Record<string, unknown> {
+  if (Array.isArray(root.result) && root.result.length > 0 && typeof root.result[0] === 'object' && root.result[0] !== null) {
+    return root.result[0] as Record<string, unknown>;
+  }
+  if (root.result && typeof root.result === 'object') {
+    return root.result;
+  }
+  if (
+    root.last_success_payload &&
+    typeof root.last_success_payload === 'object' &&
+    root.last_success_payload.result &&
+    typeof root.last_success_payload.result === 'object'
+  ) {
+    return root.last_success_payload.result;
+  }
+  return root;
+}
+
+function findTempInRecord(record: Record<string, unknown>): number | undefined {
+  const priorityKeys = [
+    'bat_temp',
+    'temp',
+    'temperature',
+    'cell_temp',
+    'bms_temp',
+    'bat_t',
+    'mos_temp',
+    'env_temp',
+  ];
+  for (const key of priorityKeys) {
+    const parsed = toTempC(record[key]);
+    if (parsed !== undefined) return parsed;
+  }
+  for (const [key, val] of Object.entries(record)) {
+    if (key.toLowerCase().includes('temp')) {
+      const parsed = toTempC(val);
+      if (parsed !== undefined) return parsed;
+    }
+  }
+  return undefined;
 }
 
 function sleepMs(ms: number): Promise<void> {
@@ -93,17 +141,7 @@ function parseMarstekJson(jsonStr: string): MarstekStatusDto {
     throw new Error(`Marstek API error: ${errMsg}`);
   }
 
-  let result: Record<string, unknown> = root;
-  if (root.result && typeof root.result === 'object') {
-    result = root.result;
-  } else if (
-    root.last_success_payload &&
-    typeof root.last_success_payload === 'object' &&
-    root.last_success_payload.result &&
-    typeof root.last_success_payload.result === 'object'
-  ) {
-    result = root.last_success_payload.result;
-  }
+  const result = extractResultRecord(root);
 
   const deviceName = typeof root.src === 'string' && root.src.trim() ? root.src.trim() : undefined;
 
@@ -118,7 +156,7 @@ function parseMarstekJson(jsonStr: string): MarstekStatusDto {
     totalGridInputEnergy: toInt(result.total_grid_input_energy, 0),
     totalLoadEnergy: toInt(result.total_load_energy, 0),
     deviceName,
-    batTemp: toTempC(result.bat_temp),
+    batTemp: findTempInRecord(result),
     timestamp: Date.now(),
   };
 }
@@ -223,25 +261,37 @@ async function queryOptionalDetails(
   let workMode: string | undefined;
   let batTemp: number | undefined;
 
-  // Query sequentially with short pause so Venus D UDP stack does not drop packets
-  try {
-    await sleepMs(120);
-    const batRaw = await sendUdpCommand(
-      ipAddress,
-      port,
-      '{"id": 2, "method": "Bat.GetStatus", "params": {"id": 0}}',
-      1500
-    );
-    if (batRaw) {
-      extraLogs.push({ method: 'Bat.GetStatus', rawResponse: batRaw });
-      const parsed = JSON.parse(batRaw) as RawMarstekPayload;
-      if (parsed.result && typeof parsed.result === 'object') {
-        ratedCapacity = toInt(parsed.result.rated_capacity, 0);
-        batTemp = toTempC(parsed.result.bat_temp);
+  // Query sequentially with 250ms pause + 1 retry so Venus D UDP stack does not drop packets
+  let batLastErr: string | null = null;
+  let batSucceeded = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await sleepMs(250);
+      const batRaw = await sendUdpCommand(
+        ipAddress,
+        port,
+        '{"id": 2, "method": "Bat.GetStatus", "params": {"id": 0}}',
+        2000
+      );
+      if (batRaw) {
+        extraLogs.push({ method: 'Bat.GetStatus', rawResponse: batRaw });
+        const parsed = JSON.parse(batRaw) as RawMarstekPayload;
+        if (parsed.error === undefined || parsed.error === null) {
+          const rec = extractResultRecord(parsed);
+          ratedCapacity = toInt(rec.rated_capacity, 0);
+          batTemp = findTempInRecord(rec);
+          batSucceeded = true;
+          break;
+        }
+        batLastErr = batRaw;
+        break;
       }
+    } catch (err) {
+      batLastErr = err instanceof Error ? err.message : 'Bat.GetStatus timeout';
     }
-  } catch {
-    // Optional telemetry
+  }
+  if (!batSucceeded && batLastErr && !batLastErr.trim().startsWith('{')) {
+    extraLogs.push({ method: 'Bat.GetStatus', rawResponse: `ERROR: ${batLastErr}` });
   }
 
   try {
