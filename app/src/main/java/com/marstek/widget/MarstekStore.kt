@@ -113,6 +113,8 @@ object MarstekStore {
     private const val KEY_LAST_TEMP = "last_bat_temp"
     private const val KEY_LAST_UPDATE = "last_update_time"
     private const val KEY_LAST_ERROR = "last_is_error"
+    private const val KEY_LAST_ERROR_MSG = "last_error_msg"
+    private const val KEY_LAST_ERROR_TIME = "last_error_time"
 
     private const val KEY_OUTAGE_TODAY = "outage_today_json"
     private const val KEY_OUTAGE_TOMORROW = "outage_tomorrow_json"
@@ -162,14 +164,24 @@ object MarstekStore {
             .putString(KEY_LAST_WORK_MODE, status.workMode)
             .putString(KEY_LAST_UPDATE, timeText)
             .putBoolean(KEY_LAST_ERROR, false)
+            .remove(KEY_LAST_ERROR_MSG)
+            .remove(KEY_LAST_ERROR_TIME)
         if (status.batTemp != null) {
             editor.putFloat(KEY_LAST_TEMP, status.batTemp)
         }
         editor.apply()
     }
 
-    fun markStatusError(context: Context) {
-        prefs(context).edit().putBoolean(KEY_LAST_ERROR, true).apply()
+    fun markStatusError(context: Context, errorMsg: String? = null) {
+        val timeText = ZonedDateTime.now(ZoneId.of("Europe/Kyiv"))
+            .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+        val editor = prefs(context).edit()
+            .putBoolean(KEY_LAST_ERROR, true)
+            .putString(KEY_LAST_ERROR_TIME, timeText)
+        if (!errorMsg.isNullOrBlank()) {
+            editor.putString(KEY_LAST_ERROR_MSG, errorMsg)
+        }
+        editor.apply()
     }
 
     data class CachedStatus(
@@ -182,7 +194,9 @@ object MarstekStore {
         val workMode: String,
         val batTemp: Float?,
         val lastUpdateTime: String,
-        val isError: Boolean
+        val isError: Boolean,
+        val lastErrorMessage: String,
+        val lastErrorTime: String
     )
 
     fun loadCachedStatus(context: Context): CachedStatus {
@@ -198,7 +212,9 @@ object MarstekStore {
             workMode = p.getString(KEY_LAST_WORK_MODE, "").orEmpty(),
             batTemp = if (rawTemp.isNaN()) null else rawTemp,
             lastUpdateTime = p.getString(KEY_LAST_UPDATE, "--:--").orEmpty(),
-            isError = p.getBoolean(KEY_LAST_ERROR, false)
+            isError = p.getBoolean(KEY_LAST_ERROR, false),
+            lastErrorMessage = p.getString(KEY_LAST_ERROR_MSG, "").orEmpty(),
+            lastErrorTime = p.getString(KEY_LAST_ERROR_TIME, "").orEmpty()
         )
     }
 

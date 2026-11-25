@@ -154,6 +154,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun getLastWidgetError(): String {
+            val cached = MarstekStore.loadCachedStatus(this@MainActivity)
+            val config = MarstekStore.loadConfig(this@MainActivity)
+            return JSONObject().apply {
+                put("isError", cached.isError)
+                put("message", cached.lastErrorMessage)
+                put("time", cached.lastErrorTime)
+                put("ip", config.ip)
+                put("port", config.port)
+                put("wifiConnected", MarstekClient.isWifiConnected(this@MainActivity))
+            }.toString()
+        }
+
+        @JavascriptInterface
         fun queryStatusAsync(requestId: String, ip: String, port: Int) {
             executor.execute {
                 try {
@@ -168,7 +182,12 @@ class MainActivity : AppCompatActivity() {
                         MarstekStore.saveStatus(this@MainActivity, outcome.status)
                         MarstekWidgetUpdater.updateAllFromCache(this@MainActivity, isUpdating = false)
                     } else {
-                        MarstekStore.markStatusError(this@MainActivity)
+                        val errMsg = try {
+                            JSONObject(outcome.bridgeJson).optString("error", "UDP timeout")
+                        } catch (_: Exception) {
+                            "UDP timeout"
+                        }
+                        MarstekStore.markStatusError(this@MainActivity, errMsg)
                     }
                     deliverBridgeResult(requestId, true, outcome.bridgeJson)
                 } catch (e: Exception) {

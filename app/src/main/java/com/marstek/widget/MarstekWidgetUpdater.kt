@@ -103,6 +103,7 @@ object MarstekWidgetUpdater {
             try {
                 val config = MarstekStore.loadConfig(appContext)
 
+                var udpUpdated = false
                 if (isUserInitiated || isScreenActive) {
                     val udpOutcome = MarstekClient.queryMarstekStatus(
                         ip = config.ip,
@@ -114,8 +115,15 @@ object MarstekWidgetUpdater {
                     if (udpOutcome.status != null) {
                         MarstekStore.saveStatus(appContext, udpOutcome.status)
                     } else {
-                        MarstekStore.markStatusError(appContext)
+                        val errMsg = try {
+                            org.json.JSONObject(udpOutcome.bridgeJson).optString("error", "UDP timeout")
+                        } catch (_: Exception) {
+                            "UDP timeout"
+                        }
+                        MarstekStore.markStatusError(appContext, errMsg)
                     }
+                    udpUpdated = true
+                    updateAllFromCache(appContext, isUpdating = false)
                 }
 
                 var outagesChanged = false
@@ -132,7 +140,7 @@ object MarstekWidgetUpdater {
                     }
                 }
 
-                if (isUserInitiated || isScreenActive || outagesChanged) {
+                if ((!udpUpdated && (isUserInitiated || isScreenActive)) || outagesChanged) {
                     updateAllFromCache(appContext, isUpdating = false)
                 }
             } catch (_: Exception) {
@@ -523,9 +531,13 @@ object MarstekWidgetUpdater {
             views.setViewVisibility(R.id.fullRightWattsText, View.GONE)
         } else {
             views.setViewVisibility(R.id.fullLeftModeIcon, View.GONE)
+            val wifiConnected = MarstekClient.isWifiConnected(context)
             val statusHeader = when {
                 isUpdating -> "Marstek · Оновлення..."
-                cached.isError -> if (cached.lastUpdateTime != "--:--") "Кеш · ${cached.lastUpdateTime}" else "Офлайн"
+                cached.isError && !wifiConnected ->
+                    if (cached.lastUpdateTime != "--:--") "Без Wi-Fi · ${cached.lastUpdateTime}" else "Без Wi-Fi"
+                cached.isError ->
+                    if (cached.lastUpdateTime != "--:--") "Кеш · ${cached.lastUpdateTime}" else "Офлайн"
                 else -> "Marstek · ${cached.lastUpdateTime}"
             }
             views.setTextViewText(R.id.fullHeaderTitle, statusHeader)

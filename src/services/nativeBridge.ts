@@ -16,6 +16,7 @@ interface MarstekNativeInterface {
   loadConfig?: () => string;
   requestNotificationPermission?: () => boolean;
   sendTestOutageNotification?: () => boolean;
+  getLastWidgetError?: () => string;
 }
 
 interface PendingCallback {
@@ -80,6 +81,26 @@ export function sendNativeTestNotification(): boolean {
     return window.MarstekNative.sendTestOutageNotification();
   }
   return false;
+}
+
+export interface WidgetDiagnosticError {
+  isError: boolean;
+  message: string;
+  time: string;
+  ip: string;
+  port: number;
+  wifiConnected: boolean;
+}
+
+export function readLastNativeWidgetError(): WidgetDiagnosticError | null {
+  if (typeof window !== 'undefined' && window.MarstekNative?.getLastWidgetError) {
+    try {
+      return JSON.parse(window.MarstekNative.getLastWidgetError()) as WidgetDiagnosticError;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export function callNativeQueryStatus(ip: string, port: number): Promise<string> {

@@ -8,6 +8,7 @@ import {
 } from './components/MarstekAdaptiveWidget';
 import { fetchMarstekStatus, MarstekFetchError } from './services/marstekApi';
 import {
+  readLastNativeWidgetError,
   requestNativeNotificationPermission,
   sendNativeTestNotification,
   syncConfigToNativeAndroid,
@@ -166,6 +167,19 @@ export function App() {
       notifyOutages,
     });
   }, [savedIp, savedPort, outageConfig.providerId, outageConfig.group, notifyOutages]);
+
+  useEffect(() => {
+    const diag = readLastNativeWidgetError();
+    if (diag && diag.isError && diag.message) {
+      appendLog({
+        target: `${diag.ip}:${diag.port}`,
+        method: `Widget (wifi=${diag.wifiConnected})`,
+        ok: false,
+        durationMs: 0,
+        rawPayload: `${diag.time ? `[${diag.time}] ` : ''}${diag.message}`,
+      });
+    }
+  }, [appendLog]);
 
   useEffect(() => {
     void fetchOutageProviders()

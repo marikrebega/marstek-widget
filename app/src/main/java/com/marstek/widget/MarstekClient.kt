@@ -71,6 +71,11 @@ object MarstekClient {
     }
 
     @Suppress("DEPRECATION")
+    fun isWifiConnected(context: Context?): Boolean {
+        return findWifiNetwork(context) != null
+    }
+
+    @Suppress("DEPRECATION")
     private fun findWifiNetwork(context: Context?): Network? {
         if (context == null) return null
         return try {
@@ -80,14 +85,14 @@ object MarstekClient {
             val activeCaps = active?.let { cm.getNetworkCapabilities(it) }
             if (active != null && activeCaps != null &&
                 activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
-                activeCaps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                !activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
             ) {
                 return active
             }
             for (net in cm.allNetworks) {
                 val caps = cm.getNetworkCapabilities(net) ?: continue
                 if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
-                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                    !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
                 ) {
                     return net
                 }
@@ -110,10 +115,7 @@ object MarstekClient {
             val address = InetAddress.getByName(ip)
             socket = DatagramSocket().apply { soTimeout = timeoutMs }
             if (wifiNetwork != null) {
-                try {
-                    wifiNetwork.bindSocket(socket)
-                } catch (_: Exception) {
-                }
+                wifiNetwork.bindSocket(socket)
             }
             val sendData = payload.toByteArray(Charsets.UTF_8)
             socket.send(DatagramPacket(sendData, sendData.size, address, port))
@@ -152,11 +154,14 @@ object MarstekClient {
         var lastError: String? = null
         var rawReply: String? = null
         val maxAttempts = if (quickMode) 2 else 3
-        val socketTimeoutMs = if (quickMode) 1800 else 3500
+        val socketTimeoutMs = if (quickMode) 2400 else 3500
+        var activeWifiForSession: Network? = wifiNetwork
 
         for (attempt in 0 until maxAttempts) {
+            val useWifiNet = if (attempt == 0) wifiNetwork else null
             try {
-                val reply = sendUdpCommand(cleanIp, cleanPort, requestPayload, socketTimeoutMs, wifiNetwork)
+                val reply = sendUdpCommand(cleanIp, cleanPort, requestPayload, socketTimeoutMs, useWifiNet)
+                activeWifiForSession = useWifiNet
                 rawReply = reply
                 val root = JSONObject(reply)
                 if (root.has("error") && !root.isNull("error")) {
@@ -180,8 +185,8 @@ object MarstekClient {
                 val extraLogs = JSONArray()
 
                 if (includeOptionalDetails) {
-                    val batAttempts = if (quickMode) 2 else 2
-                    val batTimeoutMs = if (quickMode) 1700 else 2200
+                    val batAttempts = if (quickMode) 1 else 2
+                    val batTimeoutMs = if (quickMode) 1600 else 2200
                     var batLastError: String? = null
                     var batSucceeded = false
 
@@ -193,7 +198,7 @@ object MarstekClient {
                                 cleanPort,
                                 "{\"id\": 2, \"method\": \"Bat.GetStatus\", \"params\": {\"id\": 0}}",
                                 batTimeoutMs,
-                                wifiNetwork
+                                activeWifiForSession
                             )
                             extraLogs.put(JSONObject().apply {
                                 put("method", "Bat.GetStatus")
@@ -292,10 +297,10 @@ object MarstekClient {
 
                 return UdpQueryOutcome(bridgeJson, statusData)
             } catch (_: SocketTimeoutException) {
-                lastError = "Timeout on attempt ${attempt + 1}: No UDP reply from $cleanIp:$cleanPort"
+                lastError = "Timeout on attempt ${attempt + 1} (wifi=${useWifiNet != null}): No UDP reply from $cleanIp:$cleanPort"
             } catch (e: Exception) {
-                lastError = e.message ?: "UDP error"
-                break
+                lastError = "Attempt ${attempt + 1} (wifi=${useWifiNet != null}): ${e.javaClass.simpleName}: ${e.message ?: "UDP error"}"
+                if (useWifiNet == null) break
             }
         }
 
