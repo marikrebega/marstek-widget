@@ -176,23 +176,19 @@ object MarstekWidgetUpdater {
                     val savedStart = MarstekStore.getWidgetWindowStartHour(context, widgetId)
                     val currentStart = if (savedStart >= 0) savedStart.coerceIn(0, maxStart) else (nowHour - 3).coerceIn(0, 12)
                     val nextStart = when (action) {
-                        ACTION_WINDOW_PREV -> {
-                            if (currentStart <= 0) maxStart else (currentStart - 6).coerceIn(0, maxStart)
-                        }
-                        ACTION_WINDOW_NEXT -> {
-                            if (currentStart >= maxStart) 0 else (currentStart + 6).coerceIn(0, maxStart)
-                        }
-                        else -> {
-                            if (currentStart >= maxStart) 0 else (currentStart + 6).coerceIn(0, maxStart)
-                        }
+                        ACTION_WINDOW_PREV -> (currentStart - 6).coerceIn(0, maxStart)
+                        ACTION_WINDOW_NEXT -> (currentStart + 6).coerceIn(0, maxStart)
+                        else -> if (currentStart >= maxStart) 0 else (currentStart + 6).coerceIn(0, maxStart)
                     }
-                    MarstekStore.setWidgetWindowStartHour(context, widgetId, nextStart)
-                    if (hasTomorrow) {
-                        MarstekStore.setWidgetDay(context, widgetId, if (nextStart >= 24) "tomorrow" else "today")
-                    } else {
-                        MarstekStore.setWidgetDay(context, widgetId, "today")
+                    if (nextStart != currentStart || savedStart < 0) {
+                        MarstekStore.setWidgetWindowStartHour(context, widgetId, nextStart)
+                        if (hasTomorrow) {
+                            MarstekStore.setWidgetDay(context, widgetId, if (nextStart >= 24) "tomorrow" else "today")
+                        } else {
+                            MarstekStore.setWidgetDay(context, widgetId, "today")
+                        }
+                        updateSingleWidgetFromCache(context, providerClass, widgetId)
                     }
-                    updateSingleWidgetFromCache(context, providerClass, widgetId)
                 }
                 pendingResult?.finish()
                 return true
@@ -445,6 +441,8 @@ object MarstekWidgetUpdater {
             outage.countdownText
         }
 
+        val canPrev = windowStartHour > 0
+        val canNext = windowStartHour < maxStart
         val prevPi = actionPendingIntent(context, providerClass, ACTION_WINDOW_PREV, widgetId)
         val nextPi = actionPendingIntent(context, providerClass, ACTION_WINDOW_NEXT, widgetId)
         val cyclePi = actionPendingIntent(context, providerClass, ACTION_WINDOW_CYCLE, widgetId)
@@ -511,9 +509,21 @@ object MarstekWidgetUpdater {
             views.setOnClickPendingIntent(R.id.medRefreshBtn, refreshPi)
             views.setOnClickPendingIntent(R.id.medGaugeContainer, openPi)
             views.setOnClickPendingIntent(R.id.medInfoContainer, openPi)
-            views.setOnClickPendingIntent(R.id.medPrevWindowBtn, prevPi)
             views.setOnClickPendingIntent(R.id.medOutageBarImage, cyclePi)
-            views.setOnClickPendingIntent(R.id.medNextWindowBtn, nextPi)
+
+            views.setBoolean(R.id.medPrevWindowBtn, "setEnabled", canPrev)
+            views.setTextColor(R.id.medPrevWindowBtn, if (canPrev) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+            views.setInt(R.id.medPrevWindowBtn, "setBackgroundResource", if (canPrev) R.drawable.pill_day_inactive else 0)
+            if (canPrev) {
+                views.setOnClickPendingIntent(R.id.medPrevWindowBtn, prevPi)
+            }
+
+            views.setBoolean(R.id.medNextWindowBtn, "setEnabled", canNext)
+            views.setTextColor(R.id.medNextWindowBtn, if (canNext) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+            views.setInt(R.id.medNextWindowBtn, "setBackgroundResource", if (canNext) R.drawable.pill_day_inactive else 0)
+            if (canNext) {
+                views.setOnClickPendingIntent(R.id.medNextWindowBtn, nextPi)
+            }
             return views
         }
 
@@ -701,9 +711,21 @@ object MarstekWidgetUpdater {
         views.setOnClickPendingIntent(R.id.fullHeaderTitle, openPi)
         views.setOnClickPendingIntent(R.id.fullGaugeContainer, openPi)
         views.setOnClickPendingIntent(R.id.fullInfoContainer, openPi)
-        views.setOnClickPendingIntent(R.id.fullPrevWindowBtn, prevPi)
         views.setOnClickPendingIntent(R.id.fullOutageBarImage, cyclePi)
-        views.setOnClickPendingIntent(R.id.fullNextWindowBtn, nextPi)
+
+        views.setBoolean(R.id.fullPrevWindowBtn, "setEnabled", canPrev)
+        views.setTextColor(R.id.fullPrevWindowBtn, if (canPrev) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+        views.setInt(R.id.fullPrevWindowBtn, "setBackgroundResource", if (canPrev) R.drawable.pill_day_inactive else 0)
+        if (canPrev) {
+            views.setOnClickPendingIntent(R.id.fullPrevWindowBtn, prevPi)
+        }
+
+        views.setBoolean(R.id.fullNextWindowBtn, "setEnabled", canNext)
+        views.setTextColor(R.id.fullNextWindowBtn, if (canNext) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+        views.setInt(R.id.fullNextWindowBtn, "setBackgroundResource", if (canNext) R.drawable.pill_day_inactive else 0)
+        if (canNext) {
+            views.setOnClickPendingIntent(R.id.fullNextWindowBtn, nextPi)
+        }
 
         return views
     }

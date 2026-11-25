@@ -5,6 +5,7 @@ import {
   getModeVisuals,
   getNetBatteryPower,
   getTemperatureVisuals,
+  toDayBlocks,
   type BatteryMode,
   type OutageSlot,
 } from '../types/marstek';
@@ -83,22 +84,6 @@ function formatAbsPowerUk(netBatteryPower: number): string {
     return `${(absW / 1000).toFixed(1).replace('.', ',')} кВт`;
   }
   return `${absW} Вт`;
-}
-
-function toDayBlocks(slots: OutageSlot[]): Array<{ id: string; leftPct: number; widthPct: number }> {
-  return slots
-    .map((s) => {
-      const [sh, sm] = s.start.split(':').map((n) => Number.parseInt(n, 10));
-      const [eh, em] = s.end.split(':').map((n) => Number.parseInt(n, 10));
-      const startMin = (Number.isFinite(sh) ? sh : 0) * 60 + (Number.isFinite(sm) ? sm : 0);
-      const endMin = (Number.isFinite(eh) ? eh : 0) * 60 + (Number.isFinite(em) ? em : 0);
-      return {
-        id: s.id,
-        leftPct: (startMin / 1440) * 100,
-        widthPct: Math.max(0, ((endMin - startMin) / 1440) * 100),
-      };
-    })
-    .filter((b) => b.widthPct > 0);
 }
 
 function ReloadIconButton({
@@ -310,7 +295,7 @@ function DayScaleTicks({ stepHours }: { stepHours: OutageStepHours }) {
   );
 }
 
-function ScrollableOutageBar({
+export function ScrollableOutageBar({
   stepHours,
   todayBlocks,
   tomorrowBlocks,
@@ -330,23 +315,44 @@ function ScrollableOutageBar({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   const hasTomorrow = tomorrowBlocks.length > 0;
+  const [canPrev, setCanPrev] = useState(false);
+  const [canNext, setCanNext] = useState(false);
+
+  const syncBounds = (el: HTMLDivElement) => {
+    const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+    const nextCanPrev = el.scrollLeft > 2;
+    const nextCanNext = el.scrollLeft < maxScroll - 2;
+    setCanPrev(nextCanPrev);
+    setCanNext(nextCanNext);
+  };
 
   // Auto-position once on mount to show ~12h window anchored near current time
   useEffect(() => {
-    if (didInitialScrollRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const viewportW = el.clientWidth;
     if (viewportW <= 0) return;
 
-    didInitialScrollRef.current = true;
-    const todayW = viewportW * 2;
-    const targetLeft = Math.max(
-      0,
-      Math.min(todayW - viewportW, (nowPercent / 100) * todayW - viewportW * 0.25)
-    );
-    el.scrollTo({ left: targetLeft, behavior: 'auto' });
-  }, [nowPercent]);
+    if (!didInitialScrollRef.current) {
+      didInitialScrollRef.current = true;
+      const todayW = viewportW * 1.9;
+      const targetLeft = Math.max(
+        0,
+        Math.min(todayW - viewportW, (nowPercent / 100) * todayW - viewportW * 0.25)
+      );
+      el.scrollTo({ left: targetLeft, behavior: 'auto' });
+    }
+    const raf = window.requestAnimationFrame(() => syncBounds(el));
+    return () => window.cancelAnimationFrame(raf);
+  }, [nowPercent, hasTomorrow]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => syncBounds(el));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasTomorrow, stepHours]);
 
   // Smooth jump only when user explicitly taps "Сьогодні" / "Завтра"
   useEffect(() => {
@@ -355,7 +361,7 @@ function ScrollableOutageBar({
     if (!el) return;
     const viewportW = el.clientWidth;
     if (viewportW <= 0) return;
-    const todayW = viewportW * 2;
+    const todayW = viewportW * 1.9;
     const dividerW = hasTomorrow ? 26 : 0;
 
     if (activeDay === 'tomorrow' && hasTomorrow) {
@@ -370,17 +376,19 @@ function ScrollableOutageBar({
   }, [jumpSeq, activeDay, hasTomorrow, nowPercent]);
 
   const handleStepScroll = (dir: -1 | 1) => {
+    if ((dir === -1 && !canPrev) || (dir === 1 && !canNext)) return;
     const el = scrollRef.current;
     if (!el) return;
-    const stepPx = el.clientWidth * 0.75;
+    const stepPx = el.clientWidth * 0.72;
     el.scrollBy({ left: dir * stepPx, behavior: 'smooth' });
   };
 
   const handleScrollSync = () => {
-    if (!hasTomorrow) return;
     const el = scrollRef.current;
     if (!el) return;
-    const threshold = el.clientWidth * 1.6;
+    syncBounds(el);
+    if (!hasTomorrow) return;
+    const threshold = el.clientWidth * 1.5;
     const inTomorrow = el.scrollLeft >= threshold;
     if (inTomorrow && activeDay !== 'tomorrow') {
       onActiveDayChange('tomorrow');
@@ -395,8 +403,13 @@ function ScrollableOutageBar({
         <button
           type="button"
           onClick={() => handleStepScroll(-1)}
+          disabled={!canPrev}
           aria-label="Попередні години"
-          className="w-4 h-6 rounded flex items-center justify-center text-[11px] text-[#8FA3B8] hover:text-[#F2F4F5] hover:bg-[#242A32] cursor-pointer shrink-0 transition-colors"
+          className={`w-5 h-6 rounded flex items-center justify-center text-xs shrink-0 transition-colors ${
+            canPrev
+              ? 'text-[#C9CFD5] hover:text-[#F2F4F5] hover:bg-[#242A32] cursor-pointer'
+              : 'text-[#47505A] opacity-35 cursor-default pointer-events-none'
+          }`}
         >
           ‹
         </button>
@@ -407,8 +420,8 @@ function ScrollableOutageBar({
           className="flex-1 min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:thin] [scrollbar-color:#343B46_transparent]"
         >
           <div className="flex items-stretch w-full">
-            {/* Today 00-24 (200% width = 12h visible window) */}
-            <div className="w-[200%] shrink-0">
+            {/* Today 00-24 (190% width + px-2 so edge hour ticks like 12 and 24 never clip) */}
+            <div className="w-[190%] shrink-0 px-2">
               <div
                 className={`relative h-[13px] ${
                   hasTomorrow ? 'rounded-l-[6px]' : 'rounded-[6px]'
@@ -454,7 +467,7 @@ function ScrollableOutageBar({
                   </div>
                 </div>
 
-                <div className="w-[200%] shrink-0">
+                <div className="w-[190%] shrink-0 px-2">
                   <div className="relative h-[13px] rounded-r-[6px] bg-[#1E2630] overflow-hidden">
                     {tomorrowBlocks.map((block) => (
                       <div
@@ -484,8 +497,13 @@ function ScrollableOutageBar({
         <button
           type="button"
           onClick={() => handleStepScroll(1)}
+          disabled={!canNext}
           aria-label="Наступні години"
-          className="w-4 h-6 rounded flex items-center justify-center text-[11px] text-[#8FA3B8] hover:text-[#F2F4F5] hover:bg-[#242A32] cursor-pointer shrink-0 transition-colors"
+          className={`w-5 h-6 rounded flex items-center justify-center text-xs shrink-0 transition-colors ${
+            canNext
+              ? 'text-[#C9CFD5] hover:text-[#F2F4F5] hover:bg-[#242A32] cursor-pointer'
+              : 'text-[#47505A] opacity-35 cursor-default pointer-events-none'
+          }`}
         >
           ›
         </button>

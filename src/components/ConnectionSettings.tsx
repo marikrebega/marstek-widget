@@ -5,13 +5,11 @@ import {
   getModeVisuals,
   getNetBatteryPower,
   getTemperatureVisuals,
-  type MarstekLogEntry,
   type MarstekStatus,
   type OutageConfig,
   type OutageProviderInfo,
   type OutageSlot,
 } from '../types/marstek';
-import { MarstekLogsPanel } from './MarstekLogsPanel';
 import { hasNativeAndroidBridge } from '../services/nativeBridge';
 
 export type TestState =
@@ -34,7 +32,6 @@ interface ConnectionSettingsProps {
   outageError: string | null;
   outageUpdatedAt: string | null;
   notifyOutages: boolean;
-  logs: MarstekLogEntry[];
   ipInputRef?: RefObject<HTMLInputElement | null>;
   onIpChange: (value: string) => void;
   onPortChange: (value: string) => void;
@@ -42,7 +39,6 @@ interface ConnectionSettingsProps {
   onNotifyOutagesChange: (enabled: boolean) => void;
   onTestNotification?: () => void;
   onRefreshOutages: () => void;
-  onClearLogs: () => void;
   onTestConnection: () => void;
   onSaveSettings: () => void;
 }
@@ -61,7 +57,6 @@ export function ConnectionSettings({
   outageError,
   outageUpdatedAt,
   notifyOutages,
-  logs,
   ipInputRef,
   onIpChange,
   onPortChange,
@@ -69,7 +64,6 @@ export function ConnectionSettings({
   onNotifyOutagesChange,
   onTestNotification,
   onRefreshOutages,
-  onClearLogs,
   onTestConnection,
   onSaveSettings,
 }: ConnectionSettingsProps) {
@@ -86,123 +80,117 @@ export function ConnectionSettings({
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-[22px] font-bold text-[#F2F4F5] tracking-tight text-balance">
-          Підключення Marstek Venus D
-        </h1>
-        <p className="mt-1 text-[13px] text-[#A8B0B8]">
-          Налаштуйте локальне UDP-з&apos;єднання, чергу відключень світла та переглядайте логи відповідей.
-        </p>
-      </div>
-
-      {/* UDP Connection Input Card */}
-      <div className="rounded-[20px] bg-[#1B2025] border border-[#2A2F35] p-4 space-y-3">
+      {/* UDP Connection Card */}
+      <section className="rounded-2xl bg-[#14181D] border border-[#22272E] p-4 space-y-3.5">
         <div>
-          <label
-            htmlFor="device-ip"
-            className="block text-xs font-medium text-[#A8B0B8] mb-1.5"
-          >
-            IP-адреса пристрою Marstek (напр. 192.168.1.150)
-          </label>
-          <input
-            ref={ipInputRef}
-            id="device-ip"
-            type="text"
-            inputMode="url"
-            value={ip}
-            onChange={(e) => onIpChange(e.target.value)}
-            placeholder="192.168.0.190"
-            className={`w-full rounded-[12px] bg-[#101316] border px-3.5 py-2.5 text-sm text-[#F2F4F5] placeholder-[#616973] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#5AB0FF] transition-colors ${
-              ipError ? 'border-[#F44336]' : 'border-[#2A2F35]'
-            }`}
-          />
-          {ipError && (
-            <p className="mt-1 text-xs text-[#F44336]" role="alert">
-              {ipError}
-            </p>
-          )}
+          <h2 className="text-base font-semibold text-[#F2F4F5]">
+            Пристрій Marstek
+          </h2>
+          <p className="text-xs text-[#8FA3B8] mt-0.5">
+            Локальне UDP-з’єднання в домашній Wi-Fi мережі
+          </p>
         </div>
 
-        <div>
-          <label
-            htmlFor="device-port"
-            className="block text-xs font-medium text-[#A8B0B8] mb-1.5"
-          >
-            Локальний порт API (За замовчуванням: 30000)
-          </label>
-          <input
-            id="device-port"
-            type="number"
-            min={1}
-            max={65535}
-            value={port}
-            onChange={(e) => onPortChange(e.target.value)}
-            placeholder="30000"
-            className="w-full rounded-[12px] bg-[#101316] border border-[#2A2F35] px-3.5 py-2.5 text-sm text-[#F2F4F5] placeholder-[#616973] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#5AB0FF] transition-colors"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
+          <div>
+            <label
+              htmlFor="device-ip"
+              className="block text-xs font-medium text-[#A8B0B8] mb-1.5"
+            >
+              IP-адреса
+            </label>
+            <input
+              ref={ipInputRef}
+              id="device-ip"
+              type="text"
+              inputMode="url"
+              value={ip}
+              onChange={(e) => onIpChange(e.target.value)}
+              placeholder="192.168.0.190"
+              className={`w-full min-h-[44px] rounded-xl bg-[#0F1216] border px-3.5 py-2 text-sm text-[#F2F4F5] placeholder-[#616973] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#5AB0FF] transition-colors ${
+                ipError ? 'border-[#F44336]' : 'border-[#252B32]'
+              }`}
+            />
+            {ipError && (
+              <p className="mt-1 text-xs text-[#F44336]" role="alert">
+                {ipError}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="device-port"
+              className="block text-xs font-medium text-[#A8B0B8] mb-1.5"
+            >
+              Порт API
+            </label>
+            <input
+              id="device-port"
+              type="number"
+              min={1}
+              max={65535}
+              value={port}
+              onChange={(e) => onPortChange(e.target.value)}
+              placeholder="30000"
+              className="w-full min-h-[44px] rounded-xl bg-[#0F1216] border border-[#252B32] px-3.5 py-2 text-sm text-[#F2F4F5] placeholder-[#616973] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#5AB0FF] transition-colors"
+            />
+          </div>
         </div>
 
-        <div className="pt-1 flex flex-col sm:flex-row gap-2">
+        <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
           <button
             type="button"
             onClick={onTestConnection}
             disabled={testState.kind === 'testing'}
-            className="flex-1 rounded-[12px] bg-[#2A2F35] hover:bg-[#353C44] active:bg-[#3F4750] disabled:opacity-60 px-4 py-2.5 text-sm font-medium text-[#F2F4F5] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5AB0FF] whitespace-nowrap"
+            className="flex-1 min-h-[44px] rounded-xl bg-[#22272E] hover:bg-[#2C323B] active:bg-[#343B46] disabled:opacity-60 px-4 py-2 text-sm font-medium text-[#F2F4F5] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5AB0FF] whitespace-nowrap"
           >
-            {testState.kind === 'testing'
-              ? 'Перевірка UDP...'
-              : 'Перевірити з’єднання'}
+            {testState.kind === 'testing' ? 'Перевірка UDP...' : 'Перевірити з’єднання'}
           </button>
 
           <button
             type="button"
             onClick={onSaveSettings}
-            className="flex-1 rounded-[12px] bg-[#3DDC84] hover:bg-[#4EE592] active:bg-[#2EC973] px-4 py-2.5 text-sm font-semibold text-[#101316] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC84] whitespace-nowrap"
+            className="flex-1 min-h-[44px] rounded-xl bg-[#3DDC84] hover:bg-[#4EE592] active:bg-[#2EC973] px-4 py-2 text-sm font-semibold text-[#101316] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC84] whitespace-nowrap"
           >
-            Зберегти та оновити віджет
+            Зберегти та оновити
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Test Result Card */}
+      {/* Test Result Feedback */}
       {testState.kind !== 'idle' && (
         <div
-          className={`rounded-[20px] border p-4 transition-colors ${
+          className={`rounded-2xl border p-4 transition-colors ${
             testState.kind === 'error'
-              ? 'bg-[#261818] border-[#4E2C2C]'
-              : 'bg-[#15241D] border-[#264D38]'
+              ? 'bg-[#211516] border-[#4E2C2C]'
+              : 'bg-[#132019] border-[#264D38]'
           }`}
           role="status"
           aria-live="polite"
         >
           {testState.kind === 'testing' && (
-            <>
-              <div className="text-sm font-bold text-[#3DDC84]">
-                Перевірка UDP-з&apos;єднання...
-              </div>
-              <p className="mt-2 font-mono-tabular text-xs text-[#C9CFD5]">
-                Надсилання ES.GetStatus до {testState.ip}:{testState.port}...
-              </p>
-            </>
+            <p className="font-mono-tabular text-xs text-[#3DDC84]">
+              Надсилання ES.GetStatus до {testState.ip}:{testState.port}...
+            </p>
           )}
 
           {testState.kind === 'success' && (
             <>
-              <div className="text-sm font-bold text-[#3DDC84]">
-                ✓ З&apos;єднання успішне
+              <div className="text-sm font-semibold text-[#3DDC84]">
+                З’єднання успішне
                 {testState.status.deviceName ? ` · ${testState.status.deviceName}` : ''}
               </div>
               <dl className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono-tabular text-xs text-[#F2F4F5]">
                 {testState.status.workMode && (
                   <>
-                    <dt className="text-[#A8B0B8]">Режим роботи:</dt>
+                    <dt className="text-[#8FA3B8]">Режим:</dt>
                     <dd>{testState.status.workMode}</dd>
                   </>
                 )}
-                <dt className="text-[#A8B0B8]">Заряд (SOC):</dt>
+                <dt className="text-[#8FA3B8]">Заряд:</dt>
                 <dd>{testState.status.batSoc}%</dd>
-                <dt className="text-[#A8B0B8]">Температура:</dt>
+                <dt className="text-[#8FA3B8]">Температура:</dt>
                 <dd
                   style={{
                     color:
@@ -213,11 +201,11 @@ export function ConnectionSettings({
                 >
                   {typeof testState.status.batTemp === 'number'
                     ? getTemperatureVisuals(testState.status.batTemp).label
-                    : '--°C (немає у відповіді Bat.GetStatus)'}
+                    : '--°C'}
                 </dd>
-                <dt className="text-[#A8B0B8]">Ємність батареї:</dt>
+                <dt className="text-[#8FA3B8]">Ємність:</dt>
                 <dd>{testState.status.batCap} Вт·год</dd>
-                <dt className="text-[#A8B0B8]">Батарея (нетто):</dt>
+                <dt className="text-[#8FA3B8]">Батарея (нетто):</dt>
                 <dd>
                   {(() => {
                     const net = getNetBatteryPower(
@@ -229,65 +217,65 @@ export function ConnectionSettings({
                     return `${formatPowerUk(net)} (${mode.label})`;
                   })()}
                 </dd>
-                <dt className="text-[#A8B0B8]">Сонячна (PV):</dt>
-                <dd>{testState.status.pvPower} Вт</dd>
-                <dt className="text-[#A8B0B8]">Мережа (Grid):</dt>
-                <dd>{testState.status.onGridPower} Вт</dd>
-                <dt className="text-[#A8B0B8]">Автономний вихід:</dt>
-                <dd>{testState.status.offGridPower} Вт</dd>
-                <dt className="text-[#A8B0B8]">Всього PV:</dt>
-                <dd>{testState.status.totalPvEnergy} Вт·год</dd>
-                <dt className="text-[#A8B0B8]">Всього з мережі:</dt>
-                <dd>{testState.status.totalGridInputEnergy} Вт·год</dd>
-                <dt className="text-[#A8B0B8]">Всього в мережу:</dt>
-                <dd>{testState.status.totalGridOutputEnergy} Вт·год</dd>
-                {typeof testState.status.totalLoadEnergy === 'number' && (
-                  <>
-                    <dt className="text-[#A8B0B8]">Навантаження:</dt>
-                    <dd>{testState.status.totalLoadEnergy} Вт·год</dd>
-                  </>
-                )}
+                <dt className="text-[#8FA3B8]">Сонце / Мережа:</dt>
+                <dd>
+                  {testState.status.pvPower} Вт / {testState.status.onGridPower} Вт
+                </dd>
               </dl>
             </>
           )}
 
           {testState.kind === 'error' && (
             <>
-              <div className="text-sm font-bold text-[#F44336]">
-                ✗ Помилка з&apos;єднання
+              <div className="text-sm font-semibold text-[#F44336]">
+                Помилка з’єднання
               </div>
-              <div className="mt-2 font-mono-tabular text-xs text-[#E0E0E0] space-y-2 whitespace-pre-line">
-                <p>Помилка: {testState.message}</p>
-                <div className="text-[#A8B0B8]">
-                  Перевірте:
-                  {'\n'}1. Пристрій та телефон у одній локальній мережі Wi-Fi?
-                  {'\n'}2. Чи увімкнено «Local API / Open API» у додатку Marstek?
-                  {'\n'}3. Чи відповідає IP-адреса DHCP-призначенню роутера?
-                </div>
-              </div>
+              <p className="mt-1.5 font-mono-tabular text-xs text-[#E0E0E0]">
+                {testState.message}
+              </p>
+              <p className="mt-2 text-xs text-[#A8B0B8]">
+                Переконайтеся, що телефон у тому ж Wi-Fi, у додатку Marstek увімкнено Local API, а IP збігається з роутером.
+              </p>
             </>
           )}
         </div>
       )}
 
-      {/* Real Outage Schedule API Card */}
-      <div className="rounded-[20px] bg-[#1B2025] border border-[#2A2F35] p-4 space-y-3">
-        <div>
-          <div className="text-sm font-semibold text-[#F2F4F5]">
-            Графік відключень світла
+      {/* Outage Schedule Card */}
+      <section className="rounded-2xl bg-[#14181D] border border-[#22272E] p-4 space-y-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-[#F2F4F5]">
+              Графік відключень
+            </h2>
+            <p className="text-xs text-[#8FA3B8] mt-0.5 tabular-nums">
+              {outageLoading
+                ? 'Завантаження графіка...'
+                : outageError
+                ? `Помилка: ${outageError}`
+                : formattedUpdatedAt
+                ? `Оновлено: ${formattedUpdatedAt} (Київ)`
+                : 'Автосинхронізація за чергою'}
+            </p>
           </div>
-          <div className="text-[11px] text-[#A8B0B8]">
-            Оберіть оператора та свою чергу для автоматичного отримання графіків
-          </div>
+
+          <button
+            type="button"
+            onClick={onRefreshOutages}
+            disabled={outageLoading}
+            className="min-h-[36px] rounded-lg bg-[#22272E] hover:bg-[#2C323B] disabled:opacity-50 px-3 py-1.5 text-xs font-medium text-[#FFC24D] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          >
+            {outageLoading ? 'Оновлення...' : 'Оновити'}
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-2.5">
           <div>
             <label
               htmlFor="outage-provider"
-              className="block text-[11px] text-[#A8B0B8] mb-1"
+              className="block text-xs text-[#A8B0B8] mb-1"
             >
-              Регіон / Оператор
+              Оператор
             </label>
             <select
               id="outage-provider"
@@ -298,7 +286,7 @@ export function ConnectionSettings({
                   providerId: e.target.value,
                 })
               }
-              className="w-full rounded-[12px] bg-[#101316] border border-[#2A2F35] px-3 py-2 text-xs text-[#F2F4F5] focus:outline-none focus:ring-2 focus:ring-[#FFC24D]"
+              className="w-full min-h-[44px] rounded-xl bg-[#0F1216] border border-[#252B32] px-3 py-2 text-xs text-[#F2F4F5] focus:outline-none focus:ring-2 focus:ring-[#FFC24D]"
             >
               {outageProviders.map((provider) => (
                 <option key={provider.id} value={provider.id}>
@@ -311,9 +299,9 @@ export function ConnectionSettings({
           <div>
             <label
               htmlFor="outage-group"
-              className="block text-[11px] text-[#A8B0B8] mb-1"
+              className="block text-xs text-[#A8B0B8] mb-1"
             >
-              Черга / Група
+              Черга
             </label>
             <select
               id="outage-group"
@@ -324,86 +312,65 @@ export function ConnectionSettings({
                   group: e.target.value,
                 })
               }
-              className="w-full rounded-[12px] bg-[#101316] border border-[#2A2F35] px-3 py-2 text-xs text-[#F2F4F5] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#FFC24D]"
+              className="w-full min-h-[44px] rounded-xl bg-[#0F1216] border border-[#252B32] px-3 py-2 text-xs text-[#F2F4F5] font-mono-tabular focus:outline-none focus:ring-2 focus:ring-[#FFC24D]"
             >
-              {(availableGroups.length > 0
-                ? availableGroups
-                : [outageConfig.group]
-              ).map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
+              {(availableGroups.length > 0 ? availableGroups : [outageConfig.group]).map(
+                (g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                )
+              )}
             </select>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <div className="text-[#A8B0B8] font-mono-tabular">
-            {outageLoading
-              ? 'Завантаження графіка...'
-              : outageError
-              ? `Помилка: ${outageError}`
-              : formattedUpdatedAt
-              ? `Оновлено: ${formattedUpdatedAt} (Київ)`
-              : 'Дані готові'}
-          </div>
-
-          <button
-            type="button"
-            onClick={onRefreshOutages}
-            disabled={outageLoading}
-            className="rounded-lg bg-[#2A2F35] hover:bg-[#353C44] disabled:opacity-50 px-3 py-1.5 text-xs font-medium text-[#FFC24D] transition-colors cursor-pointer whitespace-nowrap"
-          >
-            {outageLoading ? 'Оновлення...' : 'Оновити графік'}
-          </button>
-        </div>
-
-        {outageSlots.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {outageSlots.map((slot) => (
-              <span
-                key={slot.id}
-                className="rounded-lg bg-[#101316] border border-[#2A2F35] px-2.5 py-1 text-xs font-mono-tabular text-[#FFC24D]"
-              >
-                {slot.start} – {slot.end}
-              </span>
-            ))}
-          </div>
-        ) : (
-          !outageLoading && (
-            <div className="rounded-lg bg-[#101316] border border-[#2A2F35] px-3 py-2 text-xs text-[#A8B0B8]">
-              На сьогодні планових відключень для черги {outageConfig.group} не знайдено.
-            </div>
-          )
-        )}
-
-        {tomorrowOutageSlots.length > 0 && (
-          <div className="pt-2 border-t border-[#2A2F35] space-y-1.5">
-            <div className="text-[11px] font-semibold text-[#A8B0B8]">
-              Графік на завтра:
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {tomorrowOutageSlots.map((slot) => (
-                <span
-                  key={slot.id}
-                  className="rounded-lg bg-[#101316] border border-[#2A2F35] px-2.5 py-1 text-xs font-mono-tabular text-[#C9CFD5]"
-                >
-                  {slot.start} – {slot.end}
+        {/* Today Slots (clean unboxed tabular list) */}
+        <div className="space-y-1.5 pt-1">
+          <div className="text-xs font-medium text-[#A8B0B8]">Сьогодні</div>
+          {outageSlots.length > 0 ? (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono-tabular text-xs text-[#FFC24D]">
+              {outageSlots.map((slot) => (
+                <span key={slot.id}>
+                  {slot.start}–{slot.end}
                 </span>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            !outageLoading && (
+              <p className="text-xs text-[#8FA3B8]">
+                На сьогодні планових відключень для черги {outageConfig.group} немає.
+              </p>
+            )
+          )}
+        </div>
+
+        {/* Tomorrow Slots */}
+        <div className="pt-2.5 border-t border-[#22272E] space-y-1">
+          <div className="text-xs font-medium text-[#A8B0B8]">Завтра</div>
+          {tomorrowOutageSlots.length > 0 ? (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono-tabular text-xs text-[#5AB0FF]">
+              {tomorrowOutageSlots.map((slot) => (
+                <span key={slot.id}>
+                  {slot.start}–{slot.end}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[#616973]">
+              Обленерго ще не опублікувало графік на завтра. Щойно з’явиться — на шкалі додасться синій розділювач «ЗВТ» і перемикач днів.
+            </p>
+          )}
+        </div>
 
         {/* Outage Change Notifications Toggle */}
-        <div className="pt-2.5 border-t border-[#2A2F35] flex items-center justify-between gap-3">
+        <div className="pt-3 border-t border-[#22272E] flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-xs font-semibold text-[#F2F4F5]">
               Сповіщення про зміну графіка
             </div>
-            <div className="text-[11px] text-[#A8B0B8]">
-              Push на телефон при змінах на сьогодні або появі графіка на завтра (раз на 30 хв, без розряду при розблокуванні)
+            <div className="text-[11px] text-[#8FA3B8]">
+              Push при змінах на сьогодні або появі графіка на завтра
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -411,7 +378,7 @@ export function ConnectionSettings({
               <button
                 type="button"
                 onClick={onTestNotification}
-                className="rounded-lg bg-[#101316] border border-[#2A2F35] hover:border-[#FFC24D] px-2.5 py-1 text-[11px] text-[#FFC24D] transition-colors cursor-pointer"
+                className="min-h-[36px] rounded-lg bg-[#0F1216] border border-[#252B32] hover:border-[#FFC24D] px-2.5 py-1 text-xs text-[#FFC24D] transition-colors cursor-pointer"
               >
                 Тест
               </button>
@@ -422,35 +389,35 @@ export function ConnectionSettings({
               aria-checked={notifyOutages}
               aria-label="Сповіщення про зміну графіка"
               onClick={() => onNotifyOutagesChange(!notifyOutages)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
-                notifyOutages ? 'bg-[#3DDC84]' : 'bg-[#2A2F35]'
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors cursor-pointer ${
+                notifyOutages ? 'bg-[#3DDC84]' : 'bg-[#252B32]'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-[#101316] transition-transform ${
+                className={`inline-block h-5 w-5 transform rounded-full bg-[#101316] transition-transform ${
                   notifyOutages ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Marstek Response Logs Panel (in App, not in widget) */}
-      <MarstekLogsPanel logs={logs} onClearLogs={onClearLogs} />
-
-      {/* How to add widget to Home Screen */}
-      <div className="rounded-[20px] bg-[#1B2025] border border-[#2A2F35] p-4 space-y-2">
-        <div className="text-sm font-semibold text-[#F2F4F5]">
-          Як додати віджет на головний екран Android
-        </div>
-        <ol className="space-y-1 text-xs leading-relaxed text-[#A8B0B8] list-decimal list-inside">
+      {/* Collapsible Android Widget Guide */}
+      <details className="rounded-2xl bg-[#14181D] border border-[#22272E] px-4 py-3 group">
+        <summary className="text-xs font-medium text-[#C9CFD5] cursor-pointer list-none flex items-center justify-between gap-2 select-none">
+          <span>Як додати віджет на головний екран Android</span>
+          <span className="text-[#8FA3B8] group-open:rotate-180 transition-transform text-[10px]">
+            ▼
+          </span>
+        </summary>
+        <ol className="mt-3 pt-2.5 border-t border-[#22272E] space-y-1.5 text-xs leading-relaxed text-[#A8B0B8] list-decimal list-inside">
           <li>Затисніть порожнє місце на головному екрані телефону.</li>
-          <li>Оберіть пункт <strong className="text-[#F2F4F5]">Віджети</strong> (Widgets).</li>
-          <li>Знайдіть <strong className="text-[#F2F4F5]">Marstek Venus Widget</strong> і оберіть <strong className="text-[#F2F4F5]">Повний</strong>, <strong className="text-[#F2F4F5]">Компактний</strong> або <strong className="text-[#F2F4F5]">Міні (2×2 / 1×1)</strong>.</li>
-          <li>Розтягуйте віджет під будь-яку ширину (1×1 … 5×3) — сітка, шкала 00–24 та перехід на завтра підлаштуються автоматично.</li>
+          <li>Оберіть <strong className="text-[#F2F4F5]">Віджети</strong> (Widgets).</li>
+          <li>Знайдіть <strong className="text-[#F2F4F5]">Marstek Venus Widget</strong> і оберіть Повний, Компактний або Міні.</li>
+          <li>Розтягуйте віджет під потрібну ширину (1×1 … 5×3) — сітка, шкала та перехід на завтра адаптуються автоматично.</li>
         </ol>
-      </div>
+      </details>
     </div>
   );
 }

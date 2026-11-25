@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConnectionSettings, type TestState } from './components/ConnectionSettings';
-import {
-  MarstekAdaptiveWidget,
-  type OutageStepSetting,
-  type WidgetFilterGroup,
-  type WidgetGridVariant,
-} from './components/MarstekAdaptiveWidget';
+import { MarstekLogsPanel } from './components/MarstekLogsPanel';
+import { StatusDashboard } from './components/StatusDashboard';
 import { fetchMarstekStatus, MarstekFetchError } from './services/marstekApi';
 import {
   readLastNativeWidgetError,
@@ -21,13 +17,13 @@ import {
   saveLatestStatus,
   saveNotifyOutages,
   saveOutageConfig,
-  savePreviewUiState,
 } from './services/preferences';
 import {
   formatTimeHHMM,
   formatTimeHHMMSS,
   getKyivMinutes,
   type MarstekLogEntry,
+  type MarstekStatus,
   type OutageConfig,
   type OutageProviderInfo,
   type OutageSlot,
@@ -36,6 +32,8 @@ import {
 const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const VISIBILITY_RATE_LIMIT_MS = 60 * 1000;
 const MAX_LOG_ENTRIES = 50;
+
+type AppTab = 'status' | 'settings' | 'logs';
 
 const FALLBACK_PROVIDERS: OutageProviderInfo[] = [
   { id: 'prykarpattya-oe', name: 'Прикарпаттяобленерго (Івано-Франківська обл.)' },
@@ -48,6 +46,8 @@ const FALLBACK_PROVIDERS: OutageProviderInfo[] = [
 
 export function App() {
   const initialPrefs = useRef(loadPreferences());
+
+  const [activeTab, setActiveTab] = useState<AppTab>('status');
 
   const [ipInput, setIpInput] = useState(initialPrefs.current.deviceIp);
   const [portInput, setPortInput] = useState(String(initialPrefs.current.devicePort));
@@ -63,6 +63,9 @@ export function App() {
   );
   const [batTemp, setBatTemp] = useState<number | undefined>(
     initialPrefs.current.lastFullStatus?.batTemp
+  );
+  const [fullStatus, setFullStatus] = useState<MarstekStatus | null>(
+    initialPrefs.current.lastFullStatus
   );
   const [lastUpdateTime, setLastUpdateTime] = useState(
     initialPrefs.current.lastUpdateTime
@@ -86,12 +89,6 @@ export function App() {
   const [outageError, setOutageError] = useState<string | null>(null);
   const [outageUpdatedAt, setOutageUpdatedAt] = useState<string | null>(null);
 
-  const [widgetFilter, setWidgetFilter] = useState<WidgetFilterGroup>(
-    initialPrefs.current.widgetFilter
-  );
-  const [outageStep, setOutageStep] = useState<OutageStepSetting>(
-    initialPrefs.current.outageStep
-  );
   const [notifyOutages, setNotifyOutages] = useState<boolean>(
     initialPrefs.current.notifyOutages
   );
@@ -157,7 +154,6 @@ export function App() {
     []
   );
 
-  // Sync config to native Android widget bridge whenever settings change
   useEffect(() => {
     syncConfigToNativeAndroid({
       ip: savedIp,
@@ -193,7 +189,7 @@ export function App() {
     void loadOutageSchedule(outageConfig.providerId, outageConfig.group, false);
   }, [outageConfig.providerId, outageConfig.group, loadOutageSchedule]);
 
-  const refreshWidget = useCallback(
+  const refreshStatus = useCallback(
     async (targetIp: string, targetPort: number) => {
       if (!targetIp.trim()) return;
 
@@ -210,6 +206,10 @@ export function App() {
         setOnGridPower(outcome.status.onGridPower);
         setOffGridPower(outcome.status.offGridPower);
         setBatTemp((prev) => outcome.status.batTemp ?? prev);
+        setFullStatus((prev) => ({
+          ...outcome.status,
+          batTemp: outcome.status.batTemp ?? prev?.batTemp,
+        }));
         setLastUpdateTime(formatted);
         setIsError(false);
 
@@ -259,14 +259,13 @@ export function App() {
     [appendLog]
   );
 
-  // Initial live fetch on app launch + periodic 15-minute updates
   useEffect(() => {
-    void refreshWidget(savedIp, savedPort);
-  }, [savedIp, savedPort, refreshWidget]);
+    void refreshStatus(savedIp, savedPort);
+  }, [savedIp, savedPort, refreshStatus]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      void refreshWidget(savedIp, savedPort);
+      void refreshStatus(savedIp, savedPort);
       void loadOutageSchedule(outageConfig.providerId, outageConfig.group, false);
     }, AUTO_REFRESH_INTERVAL_MS);
 
@@ -280,7 +279,7 @@ export function App() {
         const now = Date.now();
         if (now - lastVisibilityRefreshRef.current > VISIBILITY_RATE_LIMIT_MS) {
           lastVisibilityRefreshRef.current = now;
-          void refreshWidget(savedIp, savedPort);
+          void refreshStatus(savedIp, savedPort);
         }
       }
     };
@@ -296,7 +295,7 @@ export function App() {
     savedPort,
     outageConfig.providerId,
     outageConfig.group,
-    refreshWidget,
+    refreshStatus,
     loadOutageSchedule,
   ]);
 
@@ -379,8 +378,8 @@ export function App() {
       notifyOutages,
     });
 
-    showToast('Налаштування збережено! Оновлення віджета...');
-    void refreshWidget(trimmedIp, parsedPort);
+    showToast('Налаштування збережено');
+    void refreshStatus(trimmedIp, parsedPort);
   };
 
   const handleOutageConfigChange = (nextConfig: OutageConfig) => {
@@ -409,84 +408,48 @@ export function App() {
     }
   };
 
-  const updatePreviewControls = (
-    nextFilter: WidgetFilterGroup,
-    nextStep: OutageStepSetting
-  ) => {
-    setWidgetFilter(nextFilter);
-    setOutageStep(nextStep);
-    savePreviewUiState(nextFilter, nextStep);
-  };
-
-  const filterTabs: Array<{ id: WidgetFilterGroup; label: string }> = [
-    { id: 'all', label: 'Усі (11)' },
-    { id: '5col', label: '5×N' },
-    { id: '4col', label: '4×N' },
-    { id: '3col', label: '3×N' },
-    { id: 'mini', label: '2×2 · 1×1' },
-  ];
-
-  const allGridItems: Array<{
-    variant: WidgetGridVariant;
-    group: Exclude<WidgetFilterGroup, 'all'>;
-    caption: string;
-  }> = [
-    { variant: '5x3', group: '5col', caption: '5×3 · Повний широкий' },
-    { variant: '5x2', group: '5col', caption: '5×2 · Середній широкий' },
-    { variant: '5x1', group: '5col', caption: '5×1 · Широка смужка' },
-    { variant: '4x3', group: '4col', caption: '4×3 · Повний стандартний' },
-    { variant: '4x2', group: '4col', caption: '4×2 · Середній стандартний' },
-    { variant: '4x1', group: '4col', caption: '4×1 · Смужка' },
-    { variant: '3x3', group: '3col', caption: '3×3 · Компактний квадрат' },
-    { variant: '3x2', group: '3col', caption: '3×2 · Вузький середній' },
-    { variant: '3x1', group: '3col', caption: '3×1 · Вузька смужка' },
-    { variant: '2x2', group: 'mini', caption: '2×2 · Міні' },
-    { variant: '1x1', group: 'mini', caption: '1×1 · Мікро' },
-  ];
-
-  const visibleVariants =
-    widgetFilter === 'all'
-      ? allGridItems
-      : allGridItems.filter((item) => item.group === widgetFilter);
+  const errorCount = logs.filter((l) => !l.ok).length;
+  const rightDesktopTab: 'settings' | 'logs' = activeTab === 'logs' ? 'logs' : 'settings';
 
   return (
     <div className="min-h-screen bg-[#0B0D10] text-[#F2F4F5] flex flex-col overflow-x-hidden">
-      {/* Top Bar */}
-      <header className="border-b border-[#1E2329] bg-[#101316]">
-        <div className="max-w-5xl w-full mx-auto px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 sm:gap-8">
-          <a
-            href="#top"
-            className="text-base font-bold tracking-tight text-[#F2F4F5] whitespace-nowrap shrink-0"
-          >
-            Marstek Widget
-          </a>
+      {/* Compact 3-Zone Top Bar */}
+      <header className="sticky top-0 z-30 border-b border-[#1E2329] bg-[#101316]/95 backdrop-blur-md">
+        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 h-13 flex items-center justify-between gap-4 sm:gap-8">
+          <span className="text-base font-bold tracking-tight text-[#F2F4F5] whitespace-nowrap shrink-0">
+            Marstek Venus
+          </span>
 
-          <nav className="hidden sm:flex items-center gap-6 text-sm text-[#A8B0B8]">
-            <a
-              href="#widget-preview"
-              className="hover:text-[#F2F4F5] transition-colors whitespace-nowrap shrink-0"
+          <nav className="hidden md:flex items-center gap-6 text-sm">
+            <button
+              type="button"
+              onClick={() => setActiveTab('settings')}
+              className={`transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 ${
+                rightDesktopTab === 'settings'
+                  ? 'text-[#F2F4F5] border-[#3DDC84] font-medium'
+                  : 'text-[#8FA3B8] border-transparent hover:text-[#F2F4F5]'
+              }`}
             >
-              Віджет
-            </a>
-            <a
-              href="#connection-settings"
-              className="hover:text-[#F2F4F5] transition-colors whitespace-nowrap shrink-0"
+              Налаштування
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('logs')}
+              className={`transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 tabular-nums ${
+                rightDesktopTab === 'logs'
+                  ? 'text-[#F2F4F5] border-[#3DDC84] font-medium'
+                  : 'text-[#8FA3B8] border-transparent hover:text-[#F2F4F5]'
+              }`}
             >
-              Підключення
-            </a>
-            <a
-              href="#marstek-logs"
-              className="hover:text-[#F2F4F5] transition-colors whitespace-nowrap shrink-0"
-            >
-              Логи
-            </a>
+              Логи ({logs.length})
+            </button>
           </nav>
 
           <button
             type="button"
-            onClick={() => void refreshWidget(savedIp, savedPort)}
+            onClick={() => void refreshStatus(savedIp, savedPort)}
             disabled={isUpdating}
-            className="px-4 py-2 rounded-lg bg-[#3DDC84] hover:bg-[#4EE592] disabled:opacity-60 text-xs font-semibold text-[#101316] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC84]"
+            className="px-4 py-2 rounded-xl bg-[#3DDC84] hover:bg-[#4EE592] disabled:opacity-60 text-xs font-semibold text-[#101316] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC84]"
           >
             {isUpdating ? 'Оновлення...' : 'Оновити'}
           </button>
@@ -494,150 +457,174 @@ export function App() {
       </header>
 
       {/* Main Content */}
-      <main id="top" className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-5 py-6 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,410px)_minmax(0,1fr)] gap-8 items-start">
-          {/* Left Column: Live Widget Preview */}
-          <section id="widget-preview" className="min-w-0 w-full lg:sticky lg:top-8 space-y-4">
-            <div className="space-y-2.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-sm font-semibold text-[#F2F4F5]">
-                  Прев’ю макетів (усі сітки)
-                </h2>
-                <span className="text-xs font-mono-tabular text-[#A8B0B8] break-all">
-                  {savedIp}:{savedPort}
-                </span>
-              </div>
-
-              <p className="text-[11px] text-[#8FA3B8]">
-                Скрол-шкала 00–24 (вікно 12 год із переходом на завтра), температура й оновлення на віджеті.
-              </p>
-
-              {/* Row 1: Grid Width Group Filter */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex flex-wrap rounded-lg bg-[#1B2025] p-0.5 border border-[#2A2F35]">
-                  {filterTabs.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => updatePreviewControls(opt.id, outageStep)}
-                      className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                        widgetFilter === opt.id
-                          ? 'bg-[#2A2F35] text-[#F2F4F5]'
-                          : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="inline-flex items-center rounded-lg bg-[#1B2025] p-0.5 border border-[#2A2F35]">
-                  <span className="px-2 text-[10.5px] text-[#8FA3B8] whitespace-nowrap">
-                    Крок:
-                  </span>
-                  {(['auto', 1, 2, 3, 4] as const).map((stepOpt) => (
-                    <button
-                      key={stepOpt}
-                      type="button"
-                      onClick={() => updatePreviewControls(widgetFilter, stepOpt)}
-                      title={
-                        stepOpt === 'auto'
-                          ? '1г для ширини ≥4, 2г для менших'
-                          : `Фіксований крок ${stepOpt} год`
-                      }
-                      className={`px-2 py-1 text-[11px] font-mono-tabular rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                        outageStep === stepOpt
-                          ? 'bg-[#2A2F35] text-[#FFC24D] font-semibold'
-                          : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
-                      }`}
-                    >
-                      {stepOpt === 'auto' ? 'Авто' : `${stepOpt}г`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Widget Canvas */}
-            <div className="flex flex-col items-center gap-4 w-full">
-              {visibleVariants.map((item) => (
-                <div
-                  key={item.variant}
-                  className="w-full flex flex-col items-center gap-1.5"
-                >
-                  <span className="text-[11px] font-medium text-[#8FA3B8] tracking-wide">
-                    {item.caption}
-                  </span>
-                  <MarstekAdaptiveWidget
-                    variant={item.variant}
-                    stepHours={outageStep}
-                    soc={soc}
-                    batCap={batCap}
-                    pvPower={pvPower}
-                    onGridPower={onGridPower}
-                    offGridPower={offGridPower}
-                    batTemp={batTemp}
-                    outageSlots={apiOutageSlots}
-                    tomorrowOutageSlots={tomorrowApiOutageSlots}
-                    outageGroupLabel={outageConfig.group}
-                    lastUpdateTime={lastUpdateTime}
-                    nowMinutes={nowMinutes}
-                    isUpdating={isUpdating}
-                    isError={isError}
-                    onRefresh={() => void refreshWidget(savedIp, savedPort)}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Right Column: Settings, Outages API, Logs */}
-          <section id="connection-settings" className="min-w-0 w-full">
-            <ConnectionSettings
-              ip={ipInput}
-              port={portInput}
-              ipError={ipError}
-              testState={testState}
-              outageConfig={outageConfig}
-              outageProviders={outageProviders}
-              availableGroups={availableGroups}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 pb-20 md:py-7 md:pb-8">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,460px)_minmax(0,1fr)] gap-7 items-start">
+          {/* Status View (on mobile visible only when activeTab === 'status') */}
+          <section
+            id="status-overview"
+            className={`min-w-0 w-full md:sticky md:top-20 ${
+              activeTab === 'status' ? 'block' : 'hidden md:block'
+            }`}
+          >
+            <StatusDashboard
+              soc={soc}
+              batCap={batCap}
+              pvPower={pvPower}
+              onGridPower={onGridPower}
+              offGridPower={offGridPower}
+              batTemp={batTemp}
+              fullStatus={fullStatus}
+              deviceIp={savedIp}
+              devicePort={savedPort}
+              lastUpdateTime={lastUpdateTime}
+              isUpdating={isUpdating}
+              isError={isError}
               outageSlots={apiOutageSlots}
               tomorrowOutageSlots={tomorrowApiOutageSlots}
-              outageLoading={outageLoading}
-              outageError={outageError}
-              outageUpdatedAt={outageUpdatedAt}
-              notifyOutages={notifyOutages}
-              logs={logs}
-              ipInputRef={ipInputRef}
-              onIpChange={(val) => {
-                setIpInput(val);
-                if (ipError) setIpError(null);
-              }}
-              onPortChange={setPortInput}
-              onOutageConfigChange={handleOutageConfigChange}
-              onNotifyOutagesChange={handleNotifyOutagesChange}
-              onTestNotification={handleTestNotification}
-              onRefreshOutages={() =>
-                void loadOutageSchedule(
-                  outageConfig.providerId,
-                  outageConfig.group,
-                  true
-                )
-              }
-              onClearLogs={() => setLogs([])}
-              onTestConnection={() => void handleTestConnection()}
-              onSaveSettings={handleSaveSettings}
+              outageGroupLabel={outageConfig.group}
+              nowMinutes={nowMinutes}
             />
           </section>
+
+          {/* Settings & Logs Column */}
+          <div className="min-w-0 w-full">
+            <div
+              className={
+                activeTab === 'settings'
+                  ? 'block'
+                  : activeTab === 'status'
+                  ? 'hidden md:block'
+                  : 'hidden'
+              }
+            >
+              <ConnectionSettings
+                ip={ipInput}
+                port={portInput}
+                ipError={ipError}
+                testState={testState}
+                outageConfig={outageConfig}
+                outageProviders={outageProviders}
+                availableGroups={availableGroups}
+                outageSlots={apiOutageSlots}
+                tomorrowOutageSlots={tomorrowApiOutageSlots}
+                outageLoading={outageLoading}
+                outageError={outageError}
+                outageUpdatedAt={outageUpdatedAt}
+                notifyOutages={notifyOutages}
+                ipInputRef={ipInputRef}
+                onIpChange={(val) => {
+                  setIpInput(val);
+                  if (ipError) setIpError(null);
+                }}
+                onPortChange={setPortInput}
+                onOutageConfigChange={handleOutageConfigChange}
+                onNotifyOutagesChange={handleNotifyOutagesChange}
+                onTestNotification={handleTestNotification}
+                onRefreshOutages={() =>
+                  void loadOutageSchedule(
+                    outageConfig.providerId,
+                    outageConfig.group,
+                    true
+                  )
+                }
+                onTestConnection={() => void handleTestConnection()}
+                onSaveSettings={handleSaveSettings}
+              />
+            </div>
+
+            <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
+              <MarstekLogsPanel logs={logs} onClearLogs={() => setLogs([])} />
+            </div>
+          </div>
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav
+        aria-label="Навігація"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-14 bg-[#101316]/95 backdrop-blur-md border-t border-[#1E2329] grid grid-cols-3"
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('status')}
+          className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+            activeTab === 'status' ? 'text-[#3DDC84]' : 'text-[#8FA3B8]'
+          }`}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+          </svg>
+          <span>Стан</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('settings')}
+          className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+            activeTab === 'settings' ? 'text-[#3DDC84]' : 'text-[#8FA3B8]'
+          }`}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span>Налаштування</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('logs')}
+          className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer tabular-nums ${
+            activeTab === 'logs'
+              ? 'text-[#3DDC84]'
+              : errorCount > 0
+              ? 'text-[#FFC24D]'
+              : 'text-[#8FA3B8]'
+          }`}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
+          <span>Логи ({logs.length})</span>
+        </button>
+      </nav>
 
       {/* Toast Banner */}
       {toastMessage && (
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-full bg-[#1B2025] border border-[#2A2F35] px-5 py-2.5 text-xs font-medium text-[#F2F4F5] shadow-xl"
+          className="fixed bottom-16 md:bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-[#1B2025] border border-[#2A2F35] px-4 py-2 text-xs font-medium text-[#F2F4F5] shadow-xl whitespace-nowrap"
         >
           {toastMessage}
         </div>

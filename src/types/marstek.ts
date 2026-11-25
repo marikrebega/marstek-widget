@@ -295,6 +295,26 @@ function minutesToHHMM(absMinutes: number): string {
   return `${h}:${m}`;
 }
 
+export function toDayBlocks(
+  slots: OutageSlot[]
+): Array<{ id: string; leftPct: number; widthPct: number }> {
+  return slots
+    .map((s) => {
+      const [sh, sm] = s.start.split(':').map((n) => Number.parseInt(n, 10));
+      const [eh, em] = s.end.split(':').map((n) => Number.parseInt(n, 10));
+      const startMin =
+        (Number.isFinite(sh) ? sh : 0) * 60 + (Number.isFinite(sm) ? sm : 0);
+      const endMin =
+        (Number.isFinite(eh) ? eh : 0) * 60 + (Number.isFinite(em) ? em : 0);
+      return {
+        id: s.id,
+        leftPct: (startMin / 1440) * 100,
+        widthPct: Math.max(0, ((endMin - startMin) / 1440) * 100),
+      };
+    })
+    .filter((b) => b.widthPct > 0);
+}
+
 export function evaluateOutageSchedule(
   slots: OutageSlot[],
   nowMinutes: number,

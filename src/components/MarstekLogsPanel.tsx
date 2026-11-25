@@ -80,22 +80,19 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
   };
 
   return (
-    <div
-      id="marstek-logs"
-      className="rounded-[20px] bg-[#1B2025] border border-[#2A2F35] p-4 space-y-3"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div id="marstek-logs" className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-[#F2F4F5]">
+          <h2 className="text-base font-semibold text-[#F2F4F5]">
             Журнал відповідей Marstek
           </h2>
-          <p className="text-[11px] text-[#A8B0B8]">
-            Сирі JSON-RPC пакети та помилки, отримані від пристрою ({logs.length})
+          <p className="text-xs text-[#8FA3B8] tabular-nums">
+            JSON-RPC пакети та діагностика віджета ({logs.length})
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg bg-[#101316] p-0.5 border border-[#2A2F35]">
+          <div className="inline-flex rounded-lg bg-[#15191E] p-0.5 border border-[#252B32]">
             {(
               [
                 { id: 'all', label: 'Усі' },
@@ -107,10 +104,10 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
                 key={tab.id}
                 type="button"
                 onClick={() => setFilter(tab.id)}
-                className={`px-2 py-1 text-[11px] font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                   filter === tab.id
-                    ? 'bg-[#2A2F35] text-[#F2F4F5]'
-                    : 'text-[#A8B0B8] hover:text-[#F2F4F5]'
+                    ? 'bg-[#252B32] text-[#F2F4F5]'
+                    : 'text-[#8FA3B8] hover:text-[#F2F4F5]'
                 }`}
               >
                 {tab.label}
@@ -122,10 +119,10 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
             type="button"
             onClick={() => void handleCopyAll()}
             disabled={logs.length === 0}
-            className={`rounded-lg bg-[#101316] border px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 ${
+            className={`rounded-lg bg-[#15191E] border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 ${
               copiedId === '__ALL__'
                 ? 'border-[#3DDC84] text-[#3DDC84]'
-                : 'border-[#2A2F35] hover:border-[#3A414A] text-[#A8B0B8] hover:text-[#F2F4F5]'
+                : 'border-[#252B32] hover:border-[#3A414A] text-[#C9CFD5] hover:text-[#F2F4F5]'
             }`}
           >
             {copiedId === '__ALL__' ? 'Скопійовано!' : 'Копіювати всі'}
@@ -135,7 +132,7 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
             type="button"
             onClick={onClearLogs}
             disabled={logs.length === 0}
-            className="rounded-lg bg-[#101316] border border-[#2A2F35] hover:border-[#3A414A] disabled:opacity-40 px-2.5 py-1 text-[11px] font-medium text-[#A8B0B8] hover:text-[#F2F4F5] transition-colors cursor-pointer whitespace-nowrap"
+            className="rounded-lg bg-[#15191E] border border-[#252B32] hover:border-[#3A414A] disabled:opacity-40 px-3 py-1.5 text-xs font-medium text-[#A8B0B8] hover:text-[#F2F4F5] transition-colors cursor-pointer whitespace-nowrap"
           >
             Очистити
           </button>
@@ -143,50 +140,58 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
       </div>
 
       {filteredLogs.length === 0 ? (
-        <div className="rounded-[12px] bg-[#101316] border border-[#2A2F35] px-4 py-6 text-center text-xs text-[#A8B0B8]">
+        <div className="rounded-2xl bg-[#14181D] border border-[#22272E] px-4 py-8 text-center text-xs text-[#8FA3B8]">
           {logs.length === 0
             ? 'Поки немає записів. Натисніть «Оновити» або «Перевірити з’єднання», щоб побачити відповідь від Marstek.'
             : 'Немає записів для вибраного фільтра.'}
         </div>
       ) : (
-        <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+        <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-0.5">
           {filteredLogs.map((entry) => (
             <div
               key={entry.id}
-              className="rounded-[12px] bg-[#101316] border border-[#2A2F35] p-3 space-y-2"
+              className="rounded-2xl bg-[#14181D] border border-[#22272E] p-3.5 space-y-2"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono-tabular">
+              <div className="flex items-center justify-between gap-2 text-xs font-mono-tabular">
                 <div className="flex items-center gap-2 min-w-0">
                   <span
-                    className={
-                      entry.ok
-                        ? 'font-semibold text-[#3DDC84]'
-                        : 'font-semibold text-[#F44336]'
-                    }
+                    className={`font-semibold shrink-0 ${
+                      entry.ok ? 'text-[#3DDC84]' : 'text-[#F44336]'
+                    }`}
                   >
                     {entry.ok ? 'OK' : 'ERR'}
                   </span>
-                  <span className="text-[#A8B0B8]">·</span>
-                  <span className="text-[#F2F4F5]">{entry.timestamp}</span>
-                  <span className="text-[#A8B0B8]">·</span>
-                  <span className="text-[#5AB0FF] truncate">{entry.method}</span>
-                  <span className="text-[#A8B0B8]">·</span>
-                  <span className="text-[#A8B0B8] truncate">{entry.target}</span>
+                  <span className="text-[#47505A] shrink-0">·</span>
+                  <span className="text-[#5AB0FF] font-medium truncate">
+                    {entry.method}
+                  </span>
+                  <span className="text-[#47505A] shrink-0">·</span>
+                  <span className="text-[#C9CFD5] shrink-0">{entry.timestamp}</span>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[#A8B0B8]">{entry.durationMs} мс</span>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="text-[11px] text-[#8FA3B8]">
+                    {entry.durationMs} мс
+                  </span>
                   <button
                     type="button"
                     onClick={() => void handleCopy(entry)}
-                    className="text-[#A8B0B8] hover:text-[#F2F4F5] transition-colors cursor-pointer"
+                    className={`rounded-md px-2 py-1 text-[11px] transition-colors cursor-pointer whitespace-nowrap ${
+                      copiedId === entry.id
+                        ? 'text-[#3DDC84] bg-[#15241D]'
+                        : 'text-[#A8B0B8] hover:text-[#F2F4F5] hover:bg-[#1E2329]'
+                    }`}
                   >
                     {copiedId === entry.id ? 'Скопійовано' : 'Копіювати'}
                   </button>
                 </div>
               </div>
 
-              <pre className="font-mono-tabular text-[11px] leading-relaxed text-[#C9CFD5] bg-[#14181D] rounded-lg p-2.5 overflow-x-auto whitespace-pre-wrap break-all">
+              <div className="text-[11px] font-mono-tabular text-[#616973]">
+                {entry.target}
+              </div>
+
+              <pre className="font-mono-tabular text-[11px] leading-relaxed text-[#C9CFD5] bg-[#0F1216] border border-[#1E2329] rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-all">
                 {formatPrettyJson(entry.rawPayload)}
               </pre>
             </div>
