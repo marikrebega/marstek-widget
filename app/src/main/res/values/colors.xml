@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Surface & Background Tokens (tokens.json color.bg.*) -->
+    <color name="bg_canvas">#0B0D10</color>
+    <color name="bg_surface">#101316</color>
+    <color name="bg_card">#14181D</color>
+    <color name="bg_surface_elevated">#1B2025</color>
+    <color name="bg_inset">#0F1216</color>
+    <color name="bg_segment">#15191E</color>
+    <color name="bg_button_secondary">#22272E</color>
+    <color name="bg_gauge_track">#242A32</color>
+    <color name="bg_outage_bar_track">#1E2630</color>
+    <color name="bg_outage_bar_empty">#151A20</color>
+
+    <!-- Border Tokens (tokens.json color.border.*) -->
+    <color name="border_default">#22272E</color>
+    <color name="border_subtle">#1E2329</color>
+    <color name="border_control">#252B32</color>
+    <color name="border_widget">#2A2F35</color>
+    <color name="border_hover">#3A414A</color>
+
+    <!-- Text Tokens (tokens.json color.text.*) -->
+    <color name="text_primary">#F2F4F5</color>
+    <color name="text_body">#C9CFD5</color>
+    <color name="text_secondary">#A8B0B8</color>
+    <color name="text_muted">#8FA3B8</color>
+    <color name="text_tertiary">#616973</color>
+    <color name="text_separator">#47505A</color>
+    <color name="text_on_accent">#101316</color>
+
+    <!-- Accent & Status Tokens (tokens.json color.accent.* & color.status.*) -->
+    <color name="accent_primary">#3DDC84</color>
+    <color name="accent_outage">#FFC24D</color>
+    <color name="accent_discharge">#5AB0FF</color>
+    <color name="status_error">#F44336</color>
+    <color name="status_error_text">#E0E0E0</color>
+    <color name="status_success_bg">#15241D</color>
+
+    <!-- Derived Alpha Tints (16% = 0x29 of base token; timeline dividers) -->
+    <color name="accent_primary_16">#293DDC84</color>
+    <color name="accent_outage_16">#29FFC24D</color>
+    <color name="accent_discharge_16">#295AB0FF</color>
+    <color name="status_error_16">#29F44336</color>
+    <color name="timeline_hour_divider">#73101316</color>
+    <color name="timeline_day_divider">#CC5AB0FF</color>
+</resources>

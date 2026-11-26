@@ -1,6 +1,8 @@
 package com.marstek.widget
 
 import android.content.Context
+import androidx.annotation.ColorRes
+import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.ZoneId
@@ -8,12 +10,15 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
-enum class BatteryMode(val labelUk: String, val colorInt: Int) {
-    CHARGING("Заряджається", 0xFF3DDC84.toInt()),
-    DISCHARGING("Розряджається", 0xFF5AB0FF.toInt()),
-    IDLE("Очікування", 0xFF8FA3B8.toInt())
+enum class BatteryMode(val labelUk: String, @ColorRes val colorRes: Int) {
+    CHARGING("Заряджається", R.color.accent_primary),
+    DISCHARGING("Розряджається", R.color.accent_discharge),
+    IDLE("Пауза", R.color.text_muted);
+
+    fun resolveColor(context: Context): Int = ContextCompat.getColor(context, colorRes)
 }
 
 data class MarstekConfig(
@@ -42,14 +47,30 @@ data class MarstekStatusData(
 
 data class TemperatureVisuals(
     val label: String,
-    val colorInt: Int
-)
+    @ColorRes val colorRes: Int
+) {
+    fun resolveColor(context: Context): Int = ContextCompat.getColor(context, colorRes)
+}
 
 data class OutageSlotData(
     val id: String,
     val start: String,
     val end: String
 )
+
+data class OutageChangedSlot(
+    val oldSlot: OutageSlotData,
+    val newSlot: OutageSlotData
+)
+
+data class OutageDiffSummary(
+    val added: List<OutageSlotData> = emptyList(),
+    val removed: List<OutageSlotData> = emptyList(),
+    val changed: List<OutageChangedSlot> = emptyList()
+) {
+    val hasChanges: Boolean
+        get() = added.isNotEmpty() || removed.isNotEmpty() || changed.isNotEmpty()
+}
 
 data class EnergyDurationsUi(
     val mode: BatteryMode,
@@ -91,7 +112,11 @@ data class OutageChangeResult(
     val tomorrowAppeared: Boolean,
     val tomorrowChanged: Boolean,
     val todaySlots: List<OutageSlotData>,
-    val tomorrowSlots: List<OutageSlotData>
+    val tomorrowSlots: List<OutageSlotData>,
+    val todayPrevSlots: List<OutageSlotData> = emptyList(),
+    val tomorrowPrevSlots: List<OutageSlotData> = emptyList(),
+    val todayDiff: OutageDiffSummary = OutageDiffSummary(),
+    val tomorrowDiff: OutageDiffSummary = OutageDiffSummary()
 )
 
 object MarstekStore {
@@ -120,6 +145,7 @@ object MarstekStore {
     private const val KEY_OUTAGE_TOMORROW = "outage_tomorrow_json"
     private const val KEY_OUTAGE_BASELINE_KEY = "outage_baseline_key"
     private const val KEY_OUTAGE_BASELINE_DATES = "outage_baseline_dates"
+    private const val KEY_OUTAGE_BASELINE_SLOTS = "outage_baseline_slots_v2"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -272,8 +298,15 @@ object MarstekStore {
         val p = prefs(context)
         val currentConfigKey = "$providerId|$group"
         val prevConfigKey = p.getString(KEY_OUTAGE_BASELINE_KEY, "")
-        val datesJsonStr = if (prevConfigKey == currentConfigKey) {
+        val sameConfig = prevConfigKey == currentConfigKey
+
+        val datesJsonStr = if (sameConfig) {
             p.getString(KEY_OUTAGE_BASELINE_DATES, "{}") ?: "{}"
+        } else {
+            "{}"
+        }
+        val slotsMapJsonStr = if (sameConfig) {
+            p.getString(KEY_OUTAGE_BASELINE_SLOTS, "{}") ?: "{}"
         } else {
             "{}"
         }
@@ -283,27 +316,51 @@ object MarstekStore {
         } catch (_: Exception) {
             JSONObject()
         }
+        val slotsMap = try {
+            JSONObject(slotsMapJsonStr)
+        } catch (_: Exception) {
+            JSONObject()
+        }
 
-        val isFirstBaseline = prevConfigKey != currentConfigKey || datesMap.length() == 0
+        val isFirstBaseline = !sameConfig || datesMap.length() == 0
 
         var todayChanged = false
         var tomorrowAppeared = false
         var tomorrowChanged = false
+        var todayPrevSlots = emptyList<OutageSlotData>()
+        var tomorrowPrevSlots = emptyList<OutageSlotData>()
+        var todayDiff = OutageDiffSummary()
+        var tomorrowDiff = OutageDiffSummary()
 
         if (!isFirstBaseline) {
             if (todayDateLabel.isNotEmpty() && datesMap.has(todayDateLabel)) {
                 val prevTodaySig = datesMap.optString(todayDateLabel, "")
                 if (prevTodaySig != todaySig) {
                     todayChanged = true
+                    val prevArr = slotsMap.optJSONArray(todayDateLabel)?.toString()
+                    todayPrevSlots = if (prevArr != null) {
+                        parseSlotsJson(prevArr)
+                    } else {
+                        parseSignatureToSlots(prevTodaySig)
+                    }
+                    todayDiff = computeOutageDiff(todayPrevSlots, todaySlots)
                 }
             }
             if (tomorrowDateLabel.isNotEmpty() && tomorrowSlots.isNotEmpty()) {
                 if (!datesMap.has(tomorrowDateLabel)) {
                     tomorrowAppeared = true
+                    tomorrowDiff = OutageDiffSummary(added = tomorrowSlots)
                 } else {
                     val prevTomorrowSig = datesMap.optString(tomorrowDateLabel, "")
                     if (prevTomorrowSig != tomorrowSig) {
                         tomorrowChanged = true
+                        val prevArr = slotsMap.optJSONArray(tomorrowDateLabel)?.toString()
+                        tomorrowPrevSlots = if (prevArr != null) {
+                            parseSlotsJson(prevArr)
+                        } else {
+                            parseSignatureToSlots(prevTomorrowSig)
+                        }
+                        tomorrowDiff = computeOutageDiff(tomorrowPrevSlots, tomorrowSlots)
                     }
                 }
             }
@@ -311,25 +368,20 @@ object MarstekStore {
 
         if (todayDateLabel.isNotEmpty()) {
             datesMap.put(todayDateLabel, todaySig)
+            slotsMap.put(todayDateLabel, encodeSlotsArray(todaySlots))
         }
         if (tomorrowDateLabel.isNotEmpty() && tomorrowSlots.isNotEmpty()) {
             datesMap.put(tomorrowDateLabel, tomorrowSig)
+            slotsMap.put(tomorrowDateLabel, encodeSlotsArray(tomorrowSlots))
         }
 
-        // Keep map compact (latest 5 dates)
-        val keys = mutableListOf<String>()
-        val iter = datesMap.keys()
-        while (iter.hasNext()) keys.add(iter.next())
-        if (keys.size > 5) {
-            val toKeep = keys.takeLast(5).toSet()
-            for (k in keys) {
-                if (!toKeep.contains(k)) datesMap.remove(k)
-            }
-        }
+        pruneMapToLatestKeys(datesMap, 5)
+        pruneMapToLatestKeys(slotsMap, 5)
 
         p.edit()
             .putString(KEY_OUTAGE_BASELINE_KEY, currentConfigKey)
             .putString(KEY_OUTAGE_BASELINE_DATES, datesMap.toString())
+            .putString(KEY_OUTAGE_BASELINE_SLOTS, slotsMap.toString())
             .apply()
 
         return OutageChangeResult(
@@ -337,8 +389,112 @@ object MarstekStore {
             tomorrowAppeared = tomorrowAppeared,
             tomorrowChanged = tomorrowChanged,
             todaySlots = todaySlots,
-            tomorrowSlots = tomorrowSlots
+            tomorrowSlots = tomorrowSlots,
+            todayPrevSlots = todayPrevSlots,
+            tomorrowPrevSlots = tomorrowPrevSlots,
+            todayDiff = todayDiff,
+            tomorrowDiff = tomorrowDiff
         )
+    }
+
+    fun computeOutageDiff(
+        oldSlots: List<OutageSlotData>,
+        newSlots: List<OutageSlotData>
+    ): OutageDiffSummary {
+        val oldSorted = oldSlots.sortedBy { timeToMinutes(it.start) }
+        val newSorted = newSlots.sortedBy { timeToMinutes(it.start) }
+
+        val oldUsed = BooleanArray(oldSorted.size)
+        val newUsed = BooleanArray(newSorted.size)
+
+        // 1. Exact matches stay unchanged
+        for (i in oldSorted.indices) {
+            for (j in newSorted.indices) {
+                if (!newUsed[j] &&
+                    oldSorted[i].start == newSorted[j].start &&
+                    oldSorted[i].end == newSorted[j].end
+                ) {
+                    oldUsed[i] = true
+                    newUsed[j] = true
+                    break
+                }
+            }
+        }
+
+        val remainingOld = oldSorted.indices.filter { !oldUsed[it] }.map { oldSorted[it] }
+        val remainingNew = newSorted.indices.filter { !newUsed[it] }.map { newSorted[it] }
+
+        val changed = mutableListOf<OutageChangedSlot>()
+        val remOldUsed = BooleanArray(remainingOld.size)
+        val remNewUsed = BooleanArray(remainingNew.size)
+
+        // 2. Pair overlapping slots first, then nearest slots within 3h shift
+        for (i in remainingOld.indices) {
+            val oStart = timeToMinutes(remainingOld[i].start)
+            val oEnd = timeToMinutes(remainingOld[i].end)
+            var bestIdx = -1
+            var bestScore = Int.MAX_VALUE
+
+            for (j in remainingNew.indices) {
+                if (remNewUsed[j]) continue
+                val nStart = timeToMinutes(remainingNew[j].start)
+                val nEnd = timeToMinutes(remainingNew[j].end)
+                val overlaps = min(oEnd, nEnd) > max(oStart, nStart)
+                val distance = abs(oStart - nStart) + abs(oEnd - nEnd)
+                if (overlaps || distance <= 180) {
+                    val score = if (overlaps) distance else distance + 1000
+                    if (score < bestScore) {
+                        bestScore = score
+                        bestIdx = j
+                    }
+                }
+            }
+
+            if (bestIdx >= 0) {
+                remOldUsed[i] = true
+                remNewUsed[bestIdx] = true
+                changed.add(OutageChangedSlot(remainingOld[i], remainingNew[bestIdx]))
+            }
+        }
+
+        val removed = remainingOld.indices.filter { !remOldUsed[it] }.map { remainingOld[it] }
+        val added = remainingNew.indices.filter { !remNewUsed[it] }.map { remainingNew[it] }
+
+        return OutageDiffSummary(added = added, removed = removed, changed = changed)
+    }
+
+    private fun pruneMapToLatestKeys(map: JSONObject, maxSize: Int) {
+        val keys = mutableListOf<String>()
+        val iter = map.keys()
+        while (iter.hasNext()) keys.add(iter.next())
+        if (keys.size > maxSize) {
+            val toKeep = keys.takeLast(maxSize).toSet()
+            for (k in keys) {
+                if (!toKeep.contains(k)) map.remove(k)
+            }
+        }
+    }
+
+    private fun encodeSlotsArray(slots: List<OutageSlotData>): JSONArray {
+        return JSONArray().apply {
+            for (slot in slots) {
+                put(JSONObject().apply {
+                    put("id", slot.id)
+                    put("start", slot.start)
+                    put("end", slot.end)
+                })
+            }
+        }
+    }
+
+    private fun parseSignatureToSlots(sig: String): List<OutageSlotData> {
+        if (sig.isBlank() || sig == "NONE") return emptyList()
+        return sig.split(",").mapIndexedNotNull { idx, item ->
+            val parts = item.trim().split("-")
+            if (parts.size == 2 && parts[0].contains(":") && parts[1].contains(":")) {
+                OutageSlotData("legacy-$idx", parts[0].trim(), parts[1].trim())
+            } else null
+        }
     }
 
     private fun slotsSignature(slots: List<OutageSlotData>): String {
@@ -374,6 +530,14 @@ object MarstekStore {
         }
     }
 
+    fun totalOutageMinutes(slots: List<OutageSlotData>): Int {
+        return slots.sumOf { slot ->
+            val s = timeToMinutes(slot.start)
+            val e = timeToMinutes(slot.end)
+            if (e > s) e - s else 0
+        }
+    }
+
     fun computeNetBatteryPower(pvPower: Int, onGridPower: Int, offGridPower: Int): Int {
         return pvPower - onGridPower - offGridPower
     }
@@ -388,14 +552,13 @@ object MarstekStore {
 
     fun getTemperatureVisuals(batTemp: Float?): TemperatureVisuals {
         if (batTemp == null || batTemp.isNaN()) {
-            return TemperatureVisuals("--°C", 0xFF8FA3B8.toInt())
+            return TemperatureVisuals("--°C", R.color.text_secondary)
         }
         val rounded = batTemp.roundToInt()
         return when {
-            batTemp < 10f -> TemperatureVisuals("${rounded}°C", 0xFF5AB0FF.toInt())
-            batTemp <= 35f -> TemperatureVisuals("${rounded}°C", 0xFF3DDC84.toInt())
-            batTemp <= 42f -> TemperatureVisuals("${rounded}°C", 0xFFFFC24D.toInt())
-            else -> TemperatureVisuals("${rounded}°C", 0xFFF44336.toInt())
+            batTemp <= 0f || batTemp >= 50f -> TemperatureVisuals("${rounded}°C", R.color.status_error)
+            batTemp < 10f || batTemp > 40f -> TemperatureVisuals("${rounded}°C", R.color.accent_outage)
+            else -> TemperatureVisuals("${rounded}°C", R.color.accent_primary)
         }
     }
 
@@ -410,17 +573,7 @@ object MarstekStore {
         }
     }
 
-    fun formatPowerUk(netBatteryPower: Int): String {
-        val absW = abs(netBatteryPower)
-        if (absW <= 25) return "0 Вт"
-        val sign = if (netBatteryPower > 0) "+" else "−"
-        return if (absW >= 1000) {
-            val kw = "%.1f".format(absW / 1000.0).replace('.', ',')
-            "$sign$kw кВт"
-        } else {
-            "$sign$absW Вт"
-        }
-    }
+    fun formatPowerUk(netBatteryPower: Int): String = formatAbsPowerUk(netBatteryPower)
 
     fun formatDurationUk(totalMinutes: Double): String {
         val clamped = max(0, totalMinutes.roundToInt())
@@ -435,7 +588,7 @@ object MarstekStore {
         val hours = clamped / 60
         val mins = clamped % 60
         if (hours == 0) return "${mins}хв"
-        return "${hours}г ${"%02d".format(mins)}хв"
+        return "${hours}г${"%02d".format(mins)}хв"
     }
 
     fun computeEnergyDurations(
@@ -506,7 +659,7 @@ object MarstekStore {
         return (now.hour % 24) * 60 + now.minute
     }
 
-    private fun timeToMinutes(hhmm: String): Int {
+    fun timeToMinutes(hhmm: String): Int {
         val parts = hhmm.split(":")
         val h = parts.getOrNull(0)?.toIntOrNull() ?: 0
         val m = parts.getOrNull(1)?.toIntOrNull() ?: 0

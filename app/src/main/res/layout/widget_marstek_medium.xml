@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="6dp">
+    android:padding="7dp">
 
     <!-- Slim Header -->
     <LinearLayout
@@ -31,8 +31,8 @@
             android:fontFeatureSettings="tnum"
             android:includeFontPadding="false"
             android:maxLines="1"
-            android:text="Очікування · 0 Вт"
-            android:textColor="#8FA3B8"
+            android:text="Пауза · 0 Вт"
+            android:textColor="@color/text_muted"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -44,44 +44,44 @@
             android:includeFontPadding="false"
             android:maxLines="1"
             android:text="--°C"
-            android:textColor="#8FA3B8"
+            android:textColor="@color/text_muted"
             android:textSize="10sp"
             android:textStyle="bold" />
 
         <FrameLayout
             android:id="@+id/medRefreshBtn"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
             android:layout_marginStart="5dp"
             android:background="@drawable/refresh_btn_bg">
 
             <ImageView
-                android:layout_width="10dp"
-                android:layout_height="10dp"
+                android:layout_width="11dp"
+                android:layout_height="11dp"
                 android:layout_gravity="center"
                 android:contentDescription="@string/app_name"
                 android:src="@drawable/ic_refresh" />
         </FrameLayout>
     </LinearLayout>
 
-    <!-- 2-Column Hero Tiles (compact 44dp min so never crushed on 2-row One UI cells) -->
+    <!-- 2-Column Hero Tiles -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="4dp"
         android:layout_weight="1"
         android:orientation="horizontal">
 
         <FrameLayout
             android:id="@+id/medGaugeContainer"
-            android:layout_width="48dp"
+            android:layout_width="50dp"
             android:layout_height="match_parent"
             android:background="@drawable/widget_card_bg"
             android:padding="2dp">
 
             <FrameLayout
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:layout_gravity="center">
 
                 <ImageView
@@ -99,8 +99,8 @@
                     android:gravity="center"
                     android:includeFontPadding="false"
                     android:text="--"
-                    android:textColor="#F2F4F5"
-                    android:textSize="12sp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
             </FrameLayout>
         </FrameLayout>
@@ -115,9 +115,9 @@
             android:gravity="center_vertical"
             android:orientation="vertical"
             android:paddingStart="8dp"
-            android:paddingTop="2dp"
+            android:paddingTop="3dp"
             android:paddingEnd="8dp"
-            android:paddingBottom="2dp">
+            android:paddingBottom="3dp">
 
             <TextView
                 android:id="@+id/medPrimaryDuration"
@@ -128,21 +128,21 @@
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="0 Вт·год"
-                android:textColor="#F2F4F5"
-                android:textSize="13.5sp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/medSecondaryMeta"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
+                android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:fontFeatureSettings="tnum"
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="Запас енергії · 0 Вт·год"
-                android:textColor="#A8B0B8"
+                android:textColor="@color/text_secondary"
                 android:textSize="9sp" />
         </LinearLayout>
     </LinearLayout>
@@ -151,13 +151,13 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="4dp"
         android:background="@drawable/widget_card_bg"
         android:orientation="vertical"
-        android:paddingStart="6dp"
-        android:paddingTop="3dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="3dp">
+        android:paddingStart="7dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="7dp"
+        android:paddingBottom="4dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -175,7 +175,7 @@
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="На сьогодні відключень немає"
-                android:textColor="#FFC24D"
+                android:textColor="@color/accent_outage"
                 android:textSize="10sp"
                 android:textStyle="bold" />
 
@@ -191,7 +191,7 @@
                 android:paddingEnd="6dp"
                 android:paddingBottom="2dp"
                 android:text="Завтра ▸"
-                android:textColor="#A8B0B8"
+                android:textColor="@color/text_secondary"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
@@ -205,50 +205,50 @@
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text=""
-                android:textColor="#A8B0B8"
-                android:textSize="9.5sp"
+                android:textColor="@color/text_secondary"
+                android:textSize="10sp"
                 android:visibility="gone" />
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/medPrevWindowBtn"
                 android:layout_width="24dp"
-                android:layout_height="22dp"
+                android:layout_height="24dp"
                 android:background="@drawable/pill_day_inactive"
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:text="‹"
-                android:textColor="#F2F4F5"
-                android:textSize="14sp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <ImageView
                 android:id="@+id/medOutageBarImage"
                 android:layout_width="0dp"
-                android:layout_height="22dp"
+                android:layout_height="24dp"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
                 android:layout_weight="1"
                 android:contentDescription="@null"
-                android:scaleType="fitXY" />
+                android:scaleType="fitCenter" />
 
             <TextView
                 android:id="@+id/medNextWindowBtn"
                 android:layout_width="24dp"
-                android:layout_height="22dp"
+                android:layout_height="24dp"
                 android:background="@drawable/pill_day_inactive"
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:text="›"
-                android:textColor="#F2F4F5"
-                android:textSize="14sp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>

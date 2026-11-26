@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 import kotlin.math.max
 import kotlin.math.min
@@ -38,7 +39,8 @@ object MarstekWidgetUpdater {
         val is1x1: Boolean get() = cols == 1
         val is2x2: Boolean get() = cols == 2 && rows <= 2
         val is2x3: Boolean get() = cols == 2 && rows >= 3
-        val isTall: Boolean get() = rows >= 4
+        val isCompactTall: Boolean get() = rows >= 4 && cols == 3
+        val isTall: Boolean get() = rows >= 4 && cols >= 4
         val stepHours: Int get() = if (cols >= 4) 1 else 2
     }
 
@@ -283,12 +285,21 @@ object MarstekWidgetUpdater {
         val cached = MarstekStore.loadCachedStatus(context)
         val (todaySlots, tomorrowSlots) = MarstekStore.loadCachedOutages(context)
 
+        val textPrimary = ContextCompat.getColor(context, R.color.text_primary)
+        val textBody = ContextCompat.getColor(context, R.color.text_body)
+        val textSecondary = ContextCompat.getColor(context, R.color.text_secondary)
+        val textMuted = ContextCompat.getColor(context, R.color.text_muted)
+        val textSeparator = ContextCompat.getColor(context, R.color.text_separator)
+        val textOnAccent = ContextCompat.getColor(context, R.color.text_on_accent)
+
         val hasSoc = cached.soc >= 0
         val clampedSoc = if (hasSoc) cached.soc.coerceIn(0, 100) else 0
         val netPower = MarstekStore.computeNetBatteryPower(cached.pvPower, cached.onGridPower, cached.offGridPower)
         val durations = MarstekStore.computeEnergyDurations(clampedSoc, cached.batCap, netPower)
         val mode = durations.mode
+        val modeColor = mode.resolveColor(context)
         val tempVisuals = MarstekStore.getTemperatureVisuals(cached.batTemp)
+        val tempColor = tempVisuals.resolveColor(context)
         val nowMinutes = MarstekStore.getKyivMinutesNow()
         val outage = MarstekStore.evaluateOutageSchedule(todaySlots, nowMinutes, tomorrowSlots)
         val absWattsText = if (hasSoc) MarstekStore.formatAbsPowerUk(netPower) else "-- Вт"
@@ -317,7 +328,7 @@ object MarstekWidgetUpdater {
         // 1x1 Micro Square
         if (spec.is1x1) {
             val views = RemoteViews(context.packageName, R.layout.widget_marstek_1x1)
-            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 160, 0.11f)
+            val gauge = WidgetGraphics.renderGaugeBitmap(context, clampedSoc, hasSoc, mode, 160, 0.11f)
             views.setImageViewBitmap(R.id.miniGaugeImage, gauge)
             views.setTextViewText(R.id.miniSocText, if (hasSoc) "$clampedSoc" else "--")
             views.setImageViewResource(
@@ -334,14 +345,14 @@ object MarstekWidgetUpdater {
             val views = RemoteViews(context.packageName, R.layout.widget_marstek_2x2)
             views.setImageViewResource(R.id.mini2ModeIcon, modeIconRes)
             views.setTextViewText(R.id.mini2WattsText, absWattsText)
-            views.setTextColor(R.id.mini2WattsText, mode.colorInt)
+            views.setTextColor(R.id.mini2WattsText, modeColor)
 
-            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 144, 0.11f)
+            val gauge = WidgetGraphics.renderGaugeBitmap(context, clampedSoc, hasSoc, mode, 144, 0.11f)
             views.setImageViewBitmap(R.id.mini2GaugeImage, gauge)
             views.setTextViewText(R.id.mini2SocText, if (hasSoc) "$clampedSoc" else "--")
             views.setTextViewText(R.id.mini2DurationText, durations.compactPrimaryValueText)
             views.setTextViewText(R.id.mini2TempText, tempVisuals.label)
-            views.setTextColor(R.id.mini2TempText, tempVisuals.colorInt)
+            views.setTextColor(R.id.mini2TempText, tempColor)
 
             views.setTextViewText(R.id.mini2OutageRange, outage.rangeText)
             views.setTextViewText(R.id.mini2OutageCountdown, outage.compactCountdownText)
@@ -352,33 +363,34 @@ object MarstekWidgetUpdater {
             return views
         }
 
-        // 2x3 Vertical Modular Tiles (with sub-Wh + 12h scrollable outage timeline)
+        // 2x3 Vertical Modular Tiles (2h step timeline)
         if (spec.is2x3) {
             val views = RemoteViews(context.packageName, R.layout.widget_marstek_2x3)
             views.setImageViewResource(R.id.mini2ModeIcon, modeIconRes)
             views.setTextViewText(R.id.mini2WattsText, absWattsText)
-            views.setTextColor(R.id.mini2WattsText, mode.colorInt)
+            views.setTextColor(R.id.mini2WattsText, modeColor)
 
-            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 180, 0.10f)
+            val gauge = WidgetGraphics.renderGaugeBitmap(context, clampedSoc, hasSoc, mode, 180, 0.10f)
             views.setImageViewBitmap(R.id.mini2GaugeImage, gauge)
             views.setTextViewText(R.id.mini2SocText, if (hasSoc) "$clampedSoc" else "--")
             views.setTextViewText(R.id.mini2DurationText, durations.compactPrimaryValueText)
             views.setTextViewText(R.id.mini23SubWhText, durations.secondaryValueText)
             views.setTextViewText(R.id.mini2TempText, tempVisuals.label)
-            views.setTextColor(R.id.mini2TempText, tempVisuals.colorInt)
+            views.setTextColor(R.id.mini2TempText, tempColor)
 
             views.setTextViewText(R.id.mini2OutageRange, outage.rangeText)
             views.setTextViewText(R.id.mini2OutageCountdown, outage.compactCountdownText)
 
             val cyclePi = actionPendingIntent(context, providerClass, ACTION_WINDOW_CYCLE, widgetId)
             val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
+                context = context,
                 todayBlocks = outage.blocks,
                 tomorrowBlocks = MarstekStore.toDayBlocks(tomorrowSlots),
                 nowRatio = outage.nowRatio,
                 windowStartHour = windowStartHour,
                 stepHours = spec.stepHours,
                 widthPx = 440,
-                heightPx = 68
+                heightPx = 80
             )
             views.setImageViewBitmap(R.id.mini23OutageBar, barBitmap)
 
@@ -392,21 +404,21 @@ object MarstekWidgetUpdater {
         // 1-Row Horizontal Strips (3x1, 4x1, 5x1)
         if (spec.rows == 1) {
             val views = RemoteViews(context.packageName, R.layout.widget_marstek_strip)
-            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 136, 0.11f)
+            val gauge = WidgetGraphics.renderGaugeBitmap(context, clampedSoc, hasSoc, mode, 136, 0.11f)
             views.setImageViewBitmap(R.id.stripGaugeImage, gauge)
             views.setTextViewText(R.id.stripSocText, if (hasSoc) "$clampedSoc" else "--")
 
             views.setImageViewResource(R.id.stripModeIcon, modeIconRes)
             if (spec.cols == 5) {
                 views.setTextViewText(R.id.stripTopMetaText, mode.labelUk)
-                views.setTextColor(R.id.stripTopMetaText, mode.colorInt)
+                views.setTextColor(R.id.stripTopMetaText, modeColor)
                 views.setTextViewText(R.id.stripWattsTempText, "· $absWattsText · ${tempVisuals.label}")
-                views.setTextColor(R.id.stripWattsTempText, 0xFFC9CFD5.toInt())
+                views.setTextColor(R.id.stripWattsTempText, textBody)
             } else {
                 views.setTextViewText(R.id.stripTopMetaText, absWattsText)
-                views.setTextColor(R.id.stripTopMetaText, mode.colorInt)
+                views.setTextColor(R.id.stripTopMetaText, modeColor)
                 views.setTextViewText(R.id.stripWattsTempText, "· ${tempVisuals.label}")
-                views.setTextColor(R.id.stripWattsTempText, tempVisuals.colorInt)
+                views.setTextColor(R.id.stripWattsTempText, tempColor)
             }
 
             val durHeadline = if (spec.cols <= 3) durations.compactPrimaryValueText else durations.primaryValueText
@@ -453,12 +465,12 @@ object MarstekWidgetUpdater {
             views.setImageViewResource(R.id.medModeIcon, modeIconRes)
             val leftHeader = if (spec.cols >= 4) "${mode.labelUk} · $absWattsText" else absWattsText
             views.setTextViewText(R.id.medHeaderLeftText, leftHeader)
-            views.setTextColor(R.id.medHeaderLeftText, mode.colorInt)
+            views.setTextColor(R.id.medHeaderLeftText, modeColor)
             views.setTextViewText(R.id.medTempText, tempVisuals.label)
-            views.setTextColor(R.id.medTempText, tempVisuals.colorInt)
+            views.setTextColor(R.id.medTempText, tempColor)
 
             val showPct = spec.cols >= 5
-            val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, 176, 0.095f)
+            val gauge = WidgetGraphics.renderGaugeBitmap(context, clampedSoc, hasSoc, mode, 176, 0.095f)
             views.setImageViewBitmap(R.id.medGaugeImage, gauge)
             views.setTextViewText(
                 R.id.medSocText,
@@ -481,7 +493,7 @@ object MarstekWidgetUpdater {
                 )
                 views.setTextColor(
                     R.id.medDayToggleBtn,
-                    if (isTomorrowView) 0xFF101316.toInt() else 0xFFA8B0B8.toInt()
+                    if (isTomorrowView) textOnAccent else textSecondary
                 )
                 val togglePi = actionPendingIntent(context, providerClass, ACTION_TOGGLE_DAY, widgetId)
                 views.setOnClickPendingIntent(R.id.medDayToggleBtn, togglePi)
@@ -496,13 +508,14 @@ object MarstekWidgetUpdater {
             }
 
             val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
+                context = context,
                 todayBlocks = todayBlocks,
                 tomorrowBlocks = tomorrowBlocks,
                 nowRatio = outage.nowRatio,
                 windowStartHour = windowStartHour,
                 stepHours = spec.stepHours,
                 widthPx = 680,
-                heightPx = 74
+                heightPx = 84
             )
             views.setImageViewBitmap(R.id.medOutageBarImage, barBitmap)
 
@@ -512,14 +525,14 @@ object MarstekWidgetUpdater {
             views.setOnClickPendingIntent(R.id.medOutageBarImage, cyclePi)
 
             views.setBoolean(R.id.medPrevWindowBtn, "setEnabled", canPrev)
-            views.setTextColor(R.id.medPrevWindowBtn, if (canPrev) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+            views.setTextColor(R.id.medPrevWindowBtn, if (canPrev) textPrimary else textSeparator)
             views.setInt(R.id.medPrevWindowBtn, "setBackgroundResource", if (canPrev) R.drawable.pill_day_inactive else 0)
             if (canPrev) {
                 views.setOnClickPendingIntent(R.id.medPrevWindowBtn, prevPi)
             }
 
             views.setBoolean(R.id.medNextWindowBtn, "setEnabled", canNext)
-            views.setTextColor(R.id.medNextWindowBtn, if (canNext) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+            views.setTextColor(R.id.medNextWindowBtn, if (canNext) textPrimary else textSeparator)
             views.setInt(R.id.medNextWindowBtn, "setBackgroundResource", if (canNext) R.drawable.pill_day_inactive else 0)
             if (canNext) {
                 views.setOnClickPendingIntent(R.id.medNextWindowBtn, nextPi)
@@ -527,15 +540,19 @@ object MarstekWidgetUpdater {
             return views
         }
 
-        // 3-Row Full Dashboard (widget_marstek_full) or 4-Row+ Tall Dashboard (widget_marstek_tall)
-        val layoutRes = if (spec.isTall) R.layout.widget_marstek_tall else R.layout.widget_marstek_full
+        // 3-Row Full Dashboard (full), 3x4+ Compact-Tall Stacked (3x4), or 4-Row+ Wide Tall (tall)
+        val layoutRes = when {
+            spec.isTall -> R.layout.widget_marstek_tall
+            spec.isCompactTall -> R.layout.widget_marstek_3x4
+            else -> R.layout.widget_marstek_full
+        }
         val views = RemoteViews(context.packageName, layoutRes)
 
         if (spec.cols == 3) {
             views.setViewVisibility(R.id.fullLeftModeIcon, View.VISIBLE)
             views.setImageViewResource(R.id.fullLeftModeIcon, modeIconRes)
             views.setTextViewText(R.id.fullHeaderTitle, absWattsText)
-            views.setTextColor(R.id.fullHeaderTitle, mode.colorInt)
+            views.setTextColor(R.id.fullHeaderTitle, modeColor)
             views.setViewVisibility(R.id.fullRightDot, View.GONE)
             views.setViewVisibility(R.id.fullModeIcon, View.GONE)
             views.setViewVisibility(R.id.fullRightWattsText, View.GONE)
@@ -551,21 +568,21 @@ object MarstekWidgetUpdater {
                 else -> "Marstek · ${cached.lastUpdateTime}"
             }
             views.setTextViewText(R.id.fullHeaderTitle, statusHeader)
-            views.setTextColor(R.id.fullHeaderTitle, 0xFFA8B0B8.toInt())
+            views.setTextColor(R.id.fullHeaderTitle, textSecondary)
             views.setViewVisibility(R.id.fullRightDot, View.VISIBLE)
             views.setViewVisibility(R.id.fullModeIcon, View.VISIBLE)
             views.setViewVisibility(R.id.fullRightWattsText, View.VISIBLE)
             views.setImageViewResource(R.id.fullModeIcon, modeIconRes)
             views.setTextViewText(R.id.fullRightWattsText, absWattsText)
-            views.setTextColor(R.id.fullRightWattsText, mode.colorInt)
+            views.setTextColor(R.id.fullRightWattsText, modeColor)
         }
 
         views.setTextViewText(R.id.fullTempText, tempVisuals.label)
-        views.setTextColor(R.id.fullTempText, tempVisuals.colorInt)
+        views.setTextColor(R.id.fullTempText, tempColor)
 
-        val showPct = spec.cols >= 4
+        val showPct = spec.cols >= 4 || spec.isCompactTall
         val gaugePx = if (spec.isTall) 256 else 220
-        val gauge = WidgetGraphics.renderGaugeBitmap(clampedSoc, hasSoc, mode, gaugePx, 0.085f)
+        val gauge = WidgetGraphics.renderGaugeBitmap(context, clampedSoc, hasSoc, mode, gaugePx, 0.085f)
         views.setImageViewBitmap(R.id.fullGaugeImage, gauge)
         views.setTextViewText(
             R.id.fullSocText,
@@ -574,18 +591,18 @@ object MarstekWidgetUpdater {
 
         views.setTextViewText(
             R.id.fullCardTitle,
-            if (spec.cols == 3) durations.leftLabel else "${durations.cardTitle} (${durations.leftLabel})"
+            if (spec.cols == 3 && !spec.isCompactTall) durations.leftLabel else "${durations.cardTitle} (${durations.leftLabel})"
         )
         views.setTextViewText(
             R.id.fullPrimaryValue,
-            if (spec.cols <= 3) durations.compactPrimaryValueText else durations.primaryValueText
+            if (spec.cols <= 3 && !spec.isCompactTall) durations.compactPrimaryValueText else durations.primaryValueText
         )
         views.setTextViewText(
             R.id.fullSecondaryValue,
-            if (spec.cols == 3) durations.secondaryValueText else "${durations.rightLabel}: ${durations.secondaryValueText}"
+            if (spec.cols == 3 && !spec.isCompactTall) durations.secondaryValueText else "${durations.rightLabel}: ${durations.secondaryValueText}"
         )
 
-        if (spec.isTall) {
+        if (spec.isTall || spec.isCompactTall) {
             val gridAbs = MarstekStore.formatAbsPowerUk(-cached.onGridPower)
             val pvAbs = if (cached.pvPower > 25) "${cached.pvPower} Вт" else "0 Вт"
             views.setTextViewText(R.id.tallPowerBreakdown, "Сонце: $pvAbs · Мережа: $gridAbs")
@@ -611,7 +628,7 @@ object MarstekWidgetUpdater {
             )
             views.setTextColor(
                 R.id.fullBtnToday,
-                if (!isTomorrowView) 0xFFF2F4F5.toInt() else 0xFF8FA3B8.toInt()
+                if (!isTomorrowView) textPrimary else textMuted
             )
             views.setInt(
                 R.id.fullBtnTomorrow,
@@ -620,7 +637,7 @@ object MarstekWidgetUpdater {
             )
             views.setTextColor(
                 R.id.fullBtnTomorrow,
-                if (isTomorrowView) 0xFF101316.toInt() else 0xFF8FA3B8.toInt()
+                if (isTomorrowView) textOnAccent else textMuted
             )
             views.setOnClickPendingIntent(
                 R.id.fullBtnToday,
@@ -634,14 +651,17 @@ object MarstekWidgetUpdater {
             views.setViewVisibility(R.id.fullDayToggleGroup, View.GONE)
         }
 
+        val barWidthPx = if (spec.cols <= 3) 480 else 720
+        val barHeightPx = if (spec.cols <= 3) 86 else 92
         val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
+            context = context,
             todayBlocks = todayBlocks,
             tomorrowBlocks = tomorrowBlocks,
             nowRatio = outage.nowRatio,
             windowStartHour = windowStartHour,
             stepHours = spec.stepHours,
-            widthPx = 720,
-            heightPx = 78
+            widthPx = barWidthPx,
+            heightPx = barHeightPx
         )
         views.setImageViewBitmap(R.id.fullOutageBarImage, barBitmap)
 
@@ -673,7 +693,7 @@ object MarstekWidgetUpdater {
                     )
                     views.setTextColor(
                         allChipIds[i],
-                        if (chip.isHighlight) 0xFF101316.toInt() else 0xFFC9CFD5.toInt()
+                        if (chip.isHighlight) textOnAccent else textBody
                     )
                 } else {
                     views.setViewVisibility(allChipIds[i], View.GONE)
@@ -682,6 +702,9 @@ object MarstekWidgetUpdater {
         } else {
             val maxChips = min(if (spec.cols == 3) 3 else 4, chipsToRender.size)
             val chipIds = intArrayOf(R.id.fullChip0, R.id.fullChip1, R.id.fullChip2, R.id.fullChip3)
+            if (spec.isCompactTall) {
+                views.setViewVisibility(R.id.tallChipsRow2, View.GONE)
+            }
             if (maxChips == 0) {
                 views.setViewVisibility(R.id.fullChipsRow, View.GONE)
             } else {
@@ -698,7 +721,7 @@ object MarstekWidgetUpdater {
                         )
                         views.setTextColor(
                             chipIds[i],
-                            if (chip.isHighlight) 0xFF101316.toInt() else 0xFFC9CFD5.toInt()
+                            if (chip.isHighlight) textOnAccent else textBody
                         )
                     } else {
                         views.setViewVisibility(chipIds[i], View.GONE)
@@ -714,14 +737,14 @@ object MarstekWidgetUpdater {
         views.setOnClickPendingIntent(R.id.fullOutageBarImage, cyclePi)
 
         views.setBoolean(R.id.fullPrevWindowBtn, "setEnabled", canPrev)
-        views.setTextColor(R.id.fullPrevWindowBtn, if (canPrev) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+        views.setTextColor(R.id.fullPrevWindowBtn, if (canPrev) textPrimary else textSeparator)
         views.setInt(R.id.fullPrevWindowBtn, "setBackgroundResource", if (canPrev) R.drawable.pill_day_inactive else 0)
         if (canPrev) {
             views.setOnClickPendingIntent(R.id.fullPrevWindowBtn, prevPi)
         }
 
         views.setBoolean(R.id.fullNextWindowBtn, "setEnabled", canNext)
-        views.setTextColor(R.id.fullNextWindowBtn, if (canNext) 0xFFF2F4F5.toInt() else 0xFF47505A.toInt())
+        views.setTextColor(R.id.fullNextWindowBtn, if (canNext) textPrimary else textSeparator)
         views.setInt(R.id.fullNextWindowBtn, "setBackgroundResource", if (canNext) R.drawable.pill_day_inactive else 0)
         if (canNext) {
             views.setOnClickPendingIntent(R.id.fullNextWindowBtn, nextPi)

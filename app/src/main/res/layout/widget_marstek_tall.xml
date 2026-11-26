@@ -30,9 +30,10 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:text="Marstek"
-            android:textColor="#A8B0B8"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -41,9 +42,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:text="--°C"
-            android:textColor="#8FA3B8"
+            android:textColor="@color/text_muted"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -53,8 +55,9 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="5dp"
             android:layout_marginEnd="5dp"
+            android:includeFontPadding="false"
             android:text="·"
-            android:textColor="#616973"
+            android:textColor="@color/text_tertiary"
             android:textSize="11sp" />
 
         <ImageView
@@ -70,9 +73,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:text="0 Вт"
-            android:textColor="#8FA3B8"
+            android:textColor="@color/text_muted"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -92,24 +96,25 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- Balanced Hero Modular Tiles (large 88dp gauge + rich PV/Grid telemetry) -->
+    <!-- Balanced Hero Modular Tiles (34% gauge / 66% info) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        android:layout_weight="1"
+        android:layout_weight="0.95"
         android:orientation="horizontal">
 
         <FrameLayout
             android:id="@+id/fullGaugeContainer"
-            android:layout_width="112dp"
+            android:layout_width="0dp"
             android:layout_height="match_parent"
+            android:layout_weight="0.34"
             android:background="@drawable/widget_card_bg"
-            android:padding="10dp">
+            android:padding="8dp">
 
             <FrameLayout
-                android:layout_width="88dp"
-                android:layout_height="88dp"
+                android:layout_width="84dp"
+                android:layout_height="84dp"
                 android:layout_gravity="center">
 
                 <ImageView
@@ -127,8 +132,8 @@
                     android:gravity="center"
                     android:includeFontPadding="false"
                     android:text="--%"
-                    android:textColor="#F2F4F5"
-                    android:textSize="23sp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="22sp"
                     android:textStyle="bold" />
             </FrameLayout>
         </FrameLayout>
@@ -138,20 +143,21 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginStart="8dp"
-            android:layout_weight="1"
+            android:layout_weight="0.66"
             android:background="@drawable/widget_card_bg"
             android:gravity="center_vertical"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:padding="11dp">
 
             <TextView
                 android:id="@+id/fullCardTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="Стан батареї (Запас енергії)"
-                android:textColor="#A8B0B8"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp" />
 
             <TextView
@@ -161,9 +167,10 @@
                 android:layout_marginTop="3dp"
                 android:ellipsize="end"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="0 Вт·год"
-                android:textColor="#F2F4F5"
+                android:textColor="@color/text_primary"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -174,9 +181,10 @@
                 android:layout_marginTop="3dp"
                 android:ellipsize="end"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="Ємність: 2560 Вт·год"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="11sp" />
 
             <TextView
@@ -186,10 +194,11 @@
                 android:layout_marginTop="4dp"
                 android:ellipsize="end"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="Сонце: 0 Вт · Мережа: 0 Вт"
-                android:textColor="#8FA3B8"
-                android:textSize="10.5sp" />
+                android:textColor="@color/text_muted"
+                android:textSize="10sp" />
 
             <TextView
                 android:id="@+id/fullEnoughOutage"
@@ -197,21 +206,22 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:ellipsize="end"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="● Вистачить на відключення"
-                android:textColor="#3DDC84"
-                android:textSize="10.5sp"
+                android:textColor="@color/accent_primary"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Outage Schedule Modular Tile (also shares vertical space cleanly) -->
+    <!-- Outage Schedule Modular Tile -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        android:layout_weight="1"
+        android:layout_weight="1.05"
         android:background="@drawable/widget_card_bg"
         android:gravity="center_vertical"
         android:orientation="vertical"
@@ -230,9 +240,10 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="На сьогодні відключень немає"
-                android:textColor="#FFC24D"
+                android:textColor="@color/accent_outage"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 
@@ -251,13 +262,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="@drawable/refresh_btn_bg"
+                    android:includeFontPadding="false"
                     android:paddingStart="7dp"
                     android:paddingTop="2dp"
                     android:paddingEnd="7dp"
                     android:paddingBottom="2dp"
                     android:text="Сьогодні"
-                    android:textColor="#F2F4F5"
-                    android:textSize="9.5sp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="9sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -265,13 +277,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="2dp"
+                    android:includeFontPadding="false"
                     android:paddingStart="7dp"
                     android:paddingTop="2dp"
                     android:paddingEnd="7dp"
                     android:paddingBottom="2dp"
                     android:text="Завтра"
-                    android:textColor="#8FA3B8"
-                    android:textSize="9.5sp"
+                    android:textColor="@color/text_muted"
+                    android:textSize="9sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -281,10 +294,11 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="Черга 5.2"
-                android:textColor="#A8B0B8"
-                android:textSize="10.5sp" />
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -300,8 +314,9 @@
                 android:layout_height="34dp"
                 android:background="@drawable/pill_day_inactive"
                 android:gravity="center"
+                android:includeFontPadding="false"
                 android:text="‹"
-                android:textColor="#F2F4F5"
+                android:textColor="@color/text_primary"
                 android:textSize="17sp"
                 android:textStyle="bold" />
 
@@ -313,7 +328,7 @@
                 android:layout_marginEnd="5dp"
                 android:layout_weight="1"
                 android:contentDescription="@null"
-                android:scaleType="fitXY" />
+                android:scaleType="fitCenter" />
 
             <TextView
                 android:id="@+id/fullNextWindowBtn"
@@ -321,8 +336,9 @@
                 android:layout_height="34dp"
                 android:background="@drawable/pill_day_inactive"
                 android:gravity="center"
+                android:includeFontPadding="false"
                 android:text="›"
-                android:textColor="#F2F4F5"
+                android:textColor="@color/text_primary"
                 android:textSize="17sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -342,12 +358,13 @@
                 android:layout_height="wrap_content"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -358,12 +375,13 @@
                 android:layout_marginStart="5dp"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -374,12 +392,13 @@
                 android:layout_marginStart="5dp"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -390,12 +409,13 @@
                 android:layout_marginStart="5dp"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
         </LinearLayout>
@@ -415,12 +435,13 @@
                 android:layout_height="wrap_content"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -431,12 +452,13 @@
                 android:layout_marginStart="5dp"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -447,12 +469,13 @@
                 android:layout_marginStart="5dp"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -463,12 +486,13 @@
                 android:layout_marginStart="5dp"
                 android:background="@drawable/pill_day_inactive"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:paddingStart="7dp"
                 android:paddingTop="3dp"
                 android:paddingEnd="7dp"
                 android:paddingBottom="3dp"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp"
                 android:visibility="gone" />
         </LinearLayout>

@@ -2,11 +2,51 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-bg-canvas: #0B0D10;
+  --color-bg-surface: #101316;
+  --color-bg-card: #14181D;
+  --color-bg-surface-elevated: #1B2025;
+  --color-bg-inset: #0F1216;
+  --color-bg-segment: #15191E;
+  --color-bg-button-secondary: #22272E;
+  --color-bg-button-secondary-hover: #2C323B;
+  --color-bg-button-secondary-active: #343B46;
+  --color-bg-hover-subtle: #1E2329;
+  --color-bg-gauge-track: #242A32;
+  --color-bg-outage-bar-track: #1E2630;
+  --color-bg-outage-bar-empty: #151A20;
+
+  --color-border-default: #22272E;
+  --color-border-subtle: #1E2329;
+  --color-border-control: #252B32;
+  --color-border-widget: #2A2F35;
+  --color-border-hover: #3A414A;
+
+  --color-text-primary: #F2F4F5;
+  --color-text-body: #C9CFD5;
+  --color-text-secondary: #A8B0B8;
+  --color-text-muted: #8FA3B8;
+  --color-text-tertiary: #616973;
+  --color-text-separator: #47505A;
+  --color-text-on-accent: #101316;
+
+  --color-accent-primary: #3DDC84;
+  --color-accent-primary-hover: #4EE592;
+  --color-accent-primary-pressed: #2EC973;
+  --color-accent-outage: #FFC24D;
+  --color-accent-discharge: #5AB0FF;
+
+  --color-status-error: #F44336;
+  --color-status-error-text: #E0E0E0;
+  --color-status-success-bg: #15241D;
+}
+
 @layer base {
   html {
     font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
-    background-color: #0b0d10;
-    color: #f2f4f5;
+    background-color: var(--color-bg-canvas);
+    color: var(--color-text-primary);
   }
 
   .font-mono-tabular {

@@ -412,11 +412,11 @@ export function App() {
   const rightDesktopTab: 'settings' | 'logs' = activeTab === 'logs' ? 'logs' : 'settings';
 
   return (
-    <div className="min-h-screen bg-[#0B0D10] text-[#F2F4F5] flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-bg-canvas text-text-primary flex flex-col overflow-x-hidden">
       {/* Compact 3-Zone Top Bar */}
-      <header className="sticky top-0 z-30 border-b border-[#1E2329] bg-[#101316]/95 backdrop-blur-md">
-        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 h-13 flex items-center justify-between gap-4 sm:gap-8">
-          <span className="text-base font-bold tracking-tight text-[#F2F4F5] whitespace-nowrap shrink-0">
+      <header className="sticky top-0 z-30 border-b border-border-subtle bg-bg-surface/95 backdrop-blur-md">
+        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-8">
+          <span className="text-base font-bold tracking-tight text-text-primary whitespace-nowrap shrink-0">
             Marstek Venus
           </span>
 
@@ -424,10 +424,10 @@ export function App() {
             <button
               type="button"
               onClick={() => setActiveTab('settings')}
-              className={`transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 ${
+              className={`min-h-[40px] transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 ${
                 rightDesktopTab === 'settings'
-                  ? 'text-[#F2F4F5] border-[#3DDC84] font-medium'
-                  : 'text-[#8FA3B8] border-transparent hover:text-[#F2F4F5]'
+                  ? 'text-text-primary border-accent-primary font-medium'
+                  : 'text-text-muted border-transparent hover:text-text-primary'
               }`}
             >
               Налаштування
@@ -435,10 +435,10 @@ export function App() {
             <button
               type="button"
               onClick={() => setActiveTab('logs')}
-              className={`transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 tabular-nums ${
+              className={`min-h-[40px] transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 tabular-nums ${
                 rightDesktopTab === 'logs'
-                  ? 'text-[#F2F4F5] border-[#3DDC84] font-medium'
-                  : 'text-[#8FA3B8] border-transparent hover:text-[#F2F4F5]'
+                  ? 'text-text-primary border-accent-primary font-medium'
+                  : 'text-text-muted border-transparent hover:text-text-primary'
               }`}
             >
               Логи ({logs.length})
@@ -449,7 +449,9 @@ export function App() {
             type="button"
             onClick={() => void refreshStatus(savedIp, savedPort)}
             disabled={isUpdating}
-            className="px-4 py-2 rounded-xl bg-[#3DDC84] hover:bg-[#4EE592] disabled:opacity-60 text-xs font-semibold text-[#101316] transition-colors cursor-pointer whitespace-nowrap shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC84]"
+            className={`${
+              activeTab === 'status' ? 'inline-flex' : 'hidden md:inline-flex'
+            } items-center justify-center min-h-[40px] px-4 py-2 rounded-xl bg-accent-primary hover:bg-accent-primary-hover active:bg-accent-primary-pressed disabled:opacity-60 text-xs font-semibold text-text-on-accent transition-colors cursor-pointer whitespace-nowrap shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-discharge`}
           >
             {isUpdating ? 'Оновлення...' : 'Оновити'}
           </button>
@@ -542,18 +544,18 @@ export function App() {
       {/* Mobile Bottom Navigation Bar */}
       <nav
         aria-label="Навігація"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-14 bg-[#101316]/95 backdrop-blur-md border-t border-[#1E2329] grid grid-cols-3"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-14 bg-bg-surface/95 backdrop-blur-md border-t border-border-subtle grid grid-cols-3"
       >
         <button
           type="button"
           onClick={() => setActiveTab('status')}
           className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
-            activeTab === 'status' ? 'text-[#3DDC84]' : 'text-[#8FA3B8]'
+            activeTab === 'status' ? 'text-accent-primary' : 'text-text-muted'
           }`}
         >
           <svg
-            width="18"
-            height="18"
+            width="22"
+            height="22"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -571,12 +573,12 @@ export function App() {
           type="button"
           onClick={() => setActiveTab('settings')}
           className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
-            activeTab === 'settings' ? 'text-[#3DDC84]' : 'text-[#8FA3B8]'
+            activeTab === 'settings' ? 'text-accent-primary' : 'text-text-muted'
           }`}
         >
           <svg
-            width="18"
-            height="18"
+            width="22"
+            height="22"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -596,15 +598,15 @@ export function App() {
           onClick={() => setActiveTab('logs')}
           className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer tabular-nums ${
             activeTab === 'logs'
-              ? 'text-[#3DDC84]'
+              ? 'text-accent-primary'
               : errorCount > 0
-              ? 'text-[#FFC24D]'
-              : 'text-[#8FA3B8]'
+              ? 'text-accent-outage'
+              : 'text-text-muted'
           }`}
         >
           <svg
-            width="18"
-            height="18"
+            width="22"
+            height="22"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -624,7 +626,7 @@ export function App() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-16 md:bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-[#1B2025] border border-[#2A2F35] px-4 py-2 text-xs font-medium text-[#F2F4F5] shadow-xl whitespace-nowrap"
+          className="fixed bottom-16 md:bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-bg-surface-elevated border border-border-widget px-4 py-2 text-xs font-medium text-text-primary shadow-xl whitespace-nowrap"
         >
           {toastMessage}
         </div>

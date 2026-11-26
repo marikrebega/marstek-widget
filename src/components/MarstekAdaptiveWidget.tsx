@@ -104,7 +104,7 @@ function ReloadIconButton({
       aria-label="Оновити дані віджета"
       className={`${
         size === 'xs' ? 'w-5 h-5 rounded-md' : 'w-6 h-6 rounded-lg'
-      } inline-flex items-center justify-center bg-[#1B2025] hover:bg-[#252B32] active:bg-[#2E353E] border border-[#2A2F35] text-[#A8B0B8] hover:text-[#F2F4F5] disabled:opacity-60 transition-colors cursor-pointer shrink-0`}
+      } inline-flex items-center justify-center bg-bg-surface-elevated hover:bg-border-control active:bg-bg-button-secondary-active border border-border-widget text-text-secondary hover:text-text-primary disabled:opacity-60 transition-colors cursor-pointer shrink-0`}
     >
       <svg
         width={size === 'xs' ? 11 : 12}
@@ -115,7 +115,7 @@ function ReloadIconButton({
         strokeWidth="2.3"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={isUpdating ? 'animate-spin text-[#3DDC84]' : ''}
+        className={isUpdating ? 'animate-spin text-accent-primary' : ''}
         aria-hidden="true"
       >
         <path d="M21 12a9 9 0 1 1-2.64-6.36" />
@@ -125,7 +125,7 @@ function ReloadIconButton({
   );
 }
 
-function ModeIcon({
+export function ModeIcon({
   mode,
   color,
   size = 11,
@@ -148,7 +148,7 @@ function ModeIcon({
         aria-hidden="true"
         className="shrink-0"
       >
-        <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+        <path d="M12 19V5M6 11l6-6 6 6" />
       </svg>
     );
   }
@@ -166,7 +166,7 @@ function ModeIcon({
         aria-hidden="true"
         className="shrink-0"
       >
-        <path d="M12 4v16M6 14l6 6 6-6" />
+        <path d="M12 5v14M6 13l6 6 6-6" />
       </svg>
     );
   }
@@ -225,7 +225,7 @@ function SocRing({
           cy="100"
           r="78"
           fill="none"
-          stroke="#2A2F35"
+          stroke="#242A32"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -245,7 +245,7 @@ function SocRing({
           {centerLabel}
         </span>
         {subLabel && (
-          <span className="mt-0.5 text-[9.5px] text-[#A8B0B8] tabular-nums">
+          <span className="mt-0.5 text-[10px] text-text-secondary tabular-nums">
             {subLabel}
           </span>
         )}
@@ -261,8 +261,8 @@ function DayScaleTicks({ stepHours }: { stepHours: OutageStepHours }) {
   }
   return (
     <div
-      className={`relative h-[14px] mt-1 font-mono-tabular text-[#8FA3B8] select-none ${
-        stepHours === 1 ? 'text-[8px] tracking-tighter' : 'text-[9.5px]'
+      className={`relative h-[14px] mt-1 font-mono-tabular text-text-muted select-none ${
+        stepHours === 1 ? 'text-[9px] tracking-tighter' : 'text-[10px]'
       }`}
     >
       {hours.map((h) => {
@@ -317,6 +317,7 @@ export function ScrollableOutageBar({
   const hasTomorrow = tomorrowBlocks.length > 0;
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(false);
+  const [isNarrowBar, setIsNarrowBar] = useState(false);
 
   const syncBounds = (el: HTMLDivElement) => {
     const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
@@ -324,6 +325,7 @@ export function ScrollableOutageBar({
     const nextCanNext = el.scrollLeft < maxScroll - 2;
     setCanPrev(nextCanPrev);
     setCanNext(nextCanNext);
+    setIsNarrowBar(el.clientWidth > 0 && el.clientWidth < 280);
   };
 
   // Auto-position once on mount to show ~12h window anchored near current time
@@ -397,6 +399,9 @@ export function ScrollableOutageBar({
     }
   };
 
+  const effectiveTickStep: OutageStepHours =
+    isNarrowBar && stepHours === 1 ? 2 : stepHours;
+
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1">
@@ -405,10 +410,10 @@ export function ScrollableOutageBar({
           onClick={() => handleStepScroll(-1)}
           disabled={!canPrev}
           aria-label="Попередні години"
-          className={`w-5 h-6 rounded flex items-center justify-center text-xs shrink-0 transition-colors ${
+          className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 transition-colors ${
             canPrev
-              ? 'text-[#C9CFD5] hover:text-[#F2F4F5] hover:bg-[#242A32] cursor-pointer'
-              : 'text-[#47505A] opacity-35 cursor-default pointer-events-none'
+              ? 'text-text-body hover:text-text-primary hover:bg-bg-gauge-track cursor-pointer'
+              : 'text-text-separator opacity-35 cursor-default pointer-events-none'
           }`}
         >
           ‹
@@ -417,7 +422,7 @@ export function ScrollableOutageBar({
         <div
           ref={scrollRef}
           onScroll={handleScrollSync}
-          className="flex-1 min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:thin] [scrollbar-color:#343B46_transparent]"
+          className="flex-1 min-w-0 overflow-x-auto pb-1 [scrollbar-width:thin] [scrollbar-color:#8FA3B8_#242A32]"
         >
           <div className="flex items-stretch w-full">
             {/* Today 00-24 (190% width + px-2 so edge hour ticks like 12 and 24 never clip) */}
@@ -425,12 +430,12 @@ export function ScrollableOutageBar({
               <div
                 className={`relative h-[13px] ${
                   hasTomorrow ? 'rounded-l-[6px]' : 'rounded-[6px]'
-                } bg-[#242A32] overflow-hidden`}
+                } bg-bg-gauge-track overflow-hidden`}
               >
                 {todayBlocks.map((block) => (
                   <div
                     key={block.id}
-                    className="absolute top-0 bottom-0 bg-[#FFC24D]"
+                    className="absolute top-0 bottom-0 bg-accent-outage"
                     style={{
                       left: `${block.leftPct.toFixed(2)}%`,
                       width: `${block.widthPct.toFixed(2)}%`,
@@ -440,39 +445,39 @@ export function ScrollableOutageBar({
                 {Array.from({ length: 23 }).map((_, idx) => (
                   <div
                     key={idx}
-                    className="absolute top-0 bottom-0 w-px bg-[#101316]/45 pointer-events-none"
+                    className="absolute top-0 bottom-0 w-px bg-bg-surface/45 pointer-events-none"
                     style={{ left: `${(((idx + 1) / 24) * 100).toFixed(2)}%` }}
                   />
                 ))}
                 <div
-                  className="absolute top-0 bottom-0 w-[2.5px] bg-white shadow"
+                  className="absolute top-0 bottom-0 w-[2.5px] bg-text-primary shadow"
                   style={{ left: `${nowPercent.toFixed(2)}%` }}
                 />
               </div>
-              <DayScaleTicks stepHours={stepHours} />
+              <DayScaleTicks stepHours={effectiveTickStep} />
             </div>
 
-            {/* Distinct Day Divider + Tomorrow 00-24 when schedule exists */}
+            {/* Distinct Day Divider + Tomorrow 00-24 (in accent-discharge #5AB0FF) */}
             {hasTomorrow && (
               <>
                 <div
                   className="w-[26px] shrink-0 flex flex-col items-center select-none"
                   aria-hidden="true"
                 >
-                  <div className="h-[13px] w-full flex items-center justify-center bg-[#151A20]">
-                    <div className="w-[2px] h-full bg-[#5AB0FF]/80" />
+                  <div className="h-[13px] w-full flex items-center justify-center bg-bg-outage-bar-empty">
+                    <div className="w-[2px] h-full bg-accent-discharge/85" />
                   </div>
-                  <div className="mt-1 text-[8px] font-bold text-[#5AB0FF] leading-[14px] tracking-tight">
+                  <div className="mt-1 text-[9px] font-bold text-accent-discharge leading-[14px] tracking-tight">
                     ЗВТ
                   </div>
                 </div>
 
                 <div className="w-[190%] shrink-0 px-2">
-                  <div className="relative h-[13px] rounded-r-[6px] bg-[#1E2630] overflow-hidden">
+                  <div className="relative h-[13px] rounded-r-[6px] bg-bg-outage-bar-track overflow-hidden">
                     {tomorrowBlocks.map((block) => (
                       <div
                         key={block.id}
-                        className="absolute top-0 bottom-0 bg-[#FFC24D]/85"
+                        className="absolute top-0 bottom-0 bg-accent-discharge"
                         style={{
                           left: `${block.leftPct.toFixed(2)}%`,
                           width: `${block.widthPct.toFixed(2)}%`,
@@ -482,12 +487,12 @@ export function ScrollableOutageBar({
                     {Array.from({ length: 23 }).map((_, idx) => (
                       <div
                         key={idx}
-                        className="absolute top-0 bottom-0 w-px bg-[#101316]/45 pointer-events-none"
+                        className="absolute top-0 bottom-0 w-px bg-bg-surface/45 pointer-events-none"
                         style={{ left: `${(((idx + 1) / 24) * 100).toFixed(2)}%` }}
                       />
                     ))}
                   </div>
-                  <DayScaleTicks stepHours={stepHours} />
+                  <DayScaleTicks stepHours={effectiveTickStep} />
                 </div>
               </>
             )}
@@ -499,10 +504,10 @@ export function ScrollableOutageBar({
           onClick={() => handleStepScroll(1)}
           disabled={!canNext}
           aria-label="Наступні години"
-          className={`w-5 h-6 rounded flex items-center justify-center text-xs shrink-0 transition-colors ${
+          className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 transition-colors ${
             canNext
-              ? 'text-[#C9CFD5] hover:text-[#F2F4F5] hover:bg-[#242A32] cursor-pointer'
-              : 'text-[#47505A] opacity-35 cursor-default pointer-events-none'
+              ? 'text-text-body hover:text-text-primary hover:bg-bg-gauge-track cursor-pointer'
+              : 'text-text-separator opacity-35 cursor-default pointer-events-none'
           }`}
         >
           ›
@@ -590,7 +595,7 @@ export function MarstekAdaptiveWidget({
         onClick={onRefresh}
         disabled={isUpdating}
         title="Натисніть, щоб оновити"
-        className={`${widthClass} relative rounded-[18px] p-2 bg-[#101316]/95 border border-[#22272E] shadow-xl flex flex-col items-center justify-between cursor-pointer hover:border-[#343B46] transition-colors select-none`}
+        className={`${widthClass} relative rounded-[18px] p-2 bg-bg-surface/95 border border-border-default shadow-xl flex flex-col items-center justify-between cursor-pointer hover:border-border-hover transition-colors select-none`}
       >
         <svg
           width={9}
@@ -601,8 +606,8 @@ export function MarstekAdaptiveWidget({
           strokeWidth="2.4"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`absolute top-1.5 right-1.5 text-[#616973] ${
-            isUpdating ? 'animate-spin text-[#3DDC84]' : ''
+          className={`absolute top-1.5 right-1.5 text-text-tertiary ${
+            isUpdating ? 'animate-spin text-accent-primary' : ''
           }`}
           aria-hidden="true"
         >
@@ -616,16 +621,15 @@ export function MarstekAdaptiveWidget({
           sizePx={52}
           strokeWidth={22}
           showPercent={false}
-          textSizeClass="text-[15.5px]"
+          textSizeClass="text-base"
         />
         <div className="w-full flex items-center justify-center gap-1 text-[10px] font-mono-tabular leading-none truncate">
           <span
-            className="w-1.5 h-1.5 rounded-full shrink-0"
-            style={{
-              backgroundColor: todayOutage.isActiveNow ? '#FFC24D' : '#3DDC84',
-            }}
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              todayOutage.isActiveNow ? 'bg-accent-outage' : 'bg-accent-primary'
+            }`}
           />
-          <span className="text-[#FFC24D] font-semibold truncate">
+          <span className="text-accent-outage font-semibold truncate">
             {todayOutage.microTimeText}
           </span>
         </div>
@@ -639,7 +643,7 @@ export function MarstekAdaptiveWidget({
       <div
         role="region"
         aria-label="Marstek 2x2 Віджет"
-        className={`${widthClass} text-left rounded-[22px] p-2.5 bg-[#101316]/95 border border-[#22272E] shadow-xl flex flex-col gap-2 select-none`}
+        className={`${widthClass} text-left rounded-[22px] p-2.5 bg-bg-surface/95 border border-border-default shadow-xl flex flex-col gap-2 select-none`}
       >
         {/* Top Flex Header: Icon + Unsigned Watts + Reload */}
         <div className="flex items-center justify-between gap-1 px-0.5">
@@ -654,7 +658,7 @@ export function MarstekAdaptiveWidget({
         </div>
 
         {/* Battery Tile */}
-        <div className="rounded-[13px] bg-[#1B2025] border border-[#2A2F35] p-2 flex items-center gap-2">
+        <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget p-2 flex items-center gap-2">
           <SocRing
             soc={clampedSoc}
             hasSoc={hasSoc}
@@ -662,14 +666,14 @@ export function MarstekAdaptiveWidget({
             sizePx={44}
             strokeWidth={22}
             showPercent={false}
-            textSizeClass="text-[14.5px]"
+            textSizeClass="text-sm"
           />
           <div className="min-w-0 flex-1 space-y-0.5">
-            <div className="text-[13.5px] font-bold leading-tight tabular-nums text-[#F2F4F5] truncate">
+            <div className="text-[13px] font-bold leading-tight tabular-nums text-text-primary truncate">
               {durations.compactPrimaryValueText}
             </div>
             <div
-              className="text-[10.5px] font-mono-tabular font-semibold truncate"
+              className="text-[10px] font-mono-tabular font-semibold truncate"
               style={{ color: tempVisuals.color }}
             >
               {tempVisuals.label}
@@ -678,11 +682,11 @@ export function MarstekAdaptiveWidget({
         </div>
 
         {/* Outage Tile */}
-        <div className="rounded-[13px] bg-[#1B2025] border border-[#2A2F35] px-2.5 py-1.5 space-y-0.5">
-          <div className="text-[11px] font-bold text-[#FFC24D] font-mono-tabular truncate">
+        <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget px-2.5 py-1.5 space-y-0.5">
+          <div className="text-[11px] font-bold text-accent-outage font-mono-tabular truncate">
             {todayOutage.rangeText}
           </div>
-          <div className="text-[10px] text-[#C9CFD5] tabular-nums truncate">
+          <div className="text-[10px] text-text-body tabular-nums truncate">
             {todayOutage.compactCountdownText}
           </div>
         </div>
@@ -696,7 +700,7 @@ export function MarstekAdaptiveWidget({
       <div
         role="region"
         aria-label={`Marstek ${variant} Віджет`}
-        className={`${widthClass} text-left rounded-[20px] p-2 bg-[#101316]/95 border border-[#22272E] shadow-xl flex items-center gap-2 select-none overflow-hidden`}
+        className={`${widthClass} text-left rounded-[22px] p-2 bg-bg-surface/95 border border-border-default shadow-xl flex items-center gap-2 select-none overflow-hidden`}
       >
         <div className="shrink-0">
           <SocRing
@@ -706,7 +710,7 @@ export function MarstekAdaptiveWidget({
             sizePx={cols === 3 ? 38 : 42}
             strokeWidth={22}
             showPercent={false}
-            textSizeClass={cols === 3 ? 'text-[12.5px]' : 'text-[13.5px]'}
+            textSizeClass={cols === 3 ? 'text-xs' : 'text-[13px]'}
           />
         </div>
 
@@ -721,13 +725,13 @@ export function MarstekAdaptiveWidget({
             </span>
             {cols === 5 && (
               <>
-                <span className="text-[#616973]">·</span>
-                <span className="text-[#F2F4F5] tabular-nums shrink-0">
+                <span className="text-text-tertiary">·</span>
+                <span className="text-text-primary tabular-nums shrink-0">
                   {hasSoc ? formatAbsPowerUk(netPower) : '-- Вт'}
                 </span>
               </>
             )}
-            <span className="text-[#616973]">·</span>
+            <span className="text-text-tertiary">·</span>
             <span
               className="font-mono-tabular shrink-0"
               style={{ color: tempVisuals.color }}
@@ -735,10 +739,10 @@ export function MarstekAdaptiveWidget({
               {tempVisuals.label}
             </span>
           </div>
-          <div className="text-[11.5px] font-bold text-[#F2F4F5] tabular-nums truncate">
+          <div className="text-xs font-bold text-text-primary tabular-nums truncate">
             {durationHeadline}
             {cols >= 4 && (
-              <span className="font-normal text-[#A8B0B8]">
+              <span className="font-normal text-text-secondary">
                 {' '}
                 · {durations.secondaryValueText}
               </span>
@@ -746,12 +750,12 @@ export function MarstekAdaptiveWidget({
           </div>
         </div>
 
-        <div className="shrink-0 rounded-[10px] bg-[#1B2025] border border-[#2A2F35] px-2 py-1 text-right font-mono-tabular">
-          <div className="text-[10px] font-bold text-[#FFC24D] whitespace-nowrap">
+        <div className="shrink-0 rounded-[10px] bg-bg-surface-elevated border border-border-widget px-2 py-1 text-right font-mono-tabular">
+          <div className="text-[10px] font-bold text-accent-outage whitespace-nowrap">
             {cols === 3 ? todayOutage.microTimeText : todayOutage.rangeText}
           </div>
           {cols >= 4 && (
-            <div className="text-[9px] text-[#A8B0B8] whitespace-nowrap">
+            <div className="text-[9px] text-text-secondary whitespace-nowrap">
               {todayOutage.shortActionText}
             </div>
           )}
@@ -769,10 +773,10 @@ export function MarstekAdaptiveWidget({
       <div
         role="region"
         aria-label={`Marstek ${variant} Віджет`}
-        className={`${widthClass} text-left rounded-[22px] p-2.5 bg-[#101316]/95 border border-[#22272E] shadow-xl flex flex-col gap-2 select-none overflow-hidden`}
+        className={`${widthClass} text-left rounded-[22px] p-2.5 bg-bg-surface/95 border border-border-default shadow-xl flex flex-col gap-2 select-none overflow-hidden`}
       >
         {/* Slim Unified Header (mode icon + unsigned watts on left, temp + reload on right) */}
-        <div className="flex items-center justify-between gap-2 px-0.5 text-[10.5px]">
+        <div className="flex items-center justify-between gap-2 px-0.5 text-[11px]">
           <span
             className="inline-flex items-center gap-1 font-semibold truncate"
             style={{ color: visuals.color }}
@@ -796,7 +800,7 @@ export function MarstekAdaptiveWidget({
         </div>
 
         <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 items-stretch">
-          <div className="rounded-[14px] bg-[#1B2025] border border-[#2A2F35] p-2 flex items-center justify-center">
+          <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget p-2 flex items-center justify-center">
             <SocRing
               soc={clampedSoc}
               hasSoc={hasSoc}
@@ -804,34 +808,28 @@ export function MarstekAdaptiveWidget({
               sizePx={ringSize}
               strokeWidth={19}
               showPercent={ringSize >= 56}
-              textSizeClass={
-                cols === 3
-                  ? 'text-[16px]'
-                  : cols === 4
-                  ? 'text-[17.5px]'
-                  : 'text-[16.5px]'
-              }
+              textSizeClass="text-[17px]"
             />
           </div>
 
-          <div className="min-w-0 rounded-[14px] bg-[#1B2025] border border-[#2A2F35] px-2.5 py-2 flex flex-col justify-center gap-0.5">
+          <div className="min-w-0 rounded-[14px] bg-bg-surface-elevated border border-border-widget px-2.5 py-2 flex flex-col justify-center gap-0.5">
             <div
               className={`${
-                cols === 3 ? 'text-[15px]' : 'text-[17.5px]'
-              } font-bold leading-tight tabular-nums text-[#F2F4F5] truncate`}
+                cols === 3 ? 'text-sm' : 'text-[17px]'
+              } font-bold leading-tight tabular-nums text-text-primary truncate`}
             >
               {durationHeadline}
             </div>
 
-            <div className="text-[10px] text-[#A8B0B8] tabular-nums truncate">
+            <div className="text-[10px] text-text-secondary tabular-nums truncate">
               {durations.leftLabel} · {durations.secondaryValueText}
             </div>
           </div>
         </div>
 
-        <div className="rounded-[14px] bg-[#1B2025] border border-[#2A2F35] px-2.5 py-2 space-y-1.5">
-          <div className="flex items-center justify-between gap-1.5 text-[10.5px]">
-            <span className="font-semibold text-[#FFC24D] tabular-nums truncate">
+        <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget px-2.5 py-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-1.5 text-[11px]">
+            <span className="font-semibold text-accent-outage tabular-nums truncate">
               {activeHeadline}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -841,17 +839,17 @@ export function MarstekAdaptiveWidget({
                   onClick={() =>
                     handleDayJump(resolvedDay === 'today' ? 'tomorrow' : 'today')
                   }
-                  className={`rounded-md px-1.5 py-0.5 text-[9.5px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     isTomorrowView
-                      ? 'bg-[#FFC24D] text-[#101316]'
-                      : 'bg-[#101316] text-[#A8B0B8] border border-[#2A2F35] hover:text-[#F2F4F5]'
+                      ? 'bg-accent-discharge text-text-on-accent'
+                      : 'bg-bg-surface text-text-secondary border border-border-widget hover:text-text-primary'
                   }`}
                 >
                   {isTomorrowView ? 'Сьогодні ◂' : 'Завтра ▸'}
                 </button>
               ) : (
                 cols >= 5 && (
-                  <span className="text-[#A8B0B8] font-mono-tabular whitespace-nowrap">
+                  <span className="text-text-secondary font-mono-tabular whitespace-nowrap">
                     {todayOutage.rangeText}
                   </span>
                 )
@@ -879,12 +877,12 @@ export function MarstekAdaptiveWidget({
 
   return (
     <div
-      className={`${widthClass} rounded-[24px] p-3 bg-[#101316]/95 text-[#F2F4F5] border border-[#22272E] shadow-2xl flex flex-col gap-2 select-none overflow-hidden`}
+      className={`${widthClass} rounded-[22px] p-3 bg-bg-surface/95 text-text-primary border border-border-default shadow-2xl flex flex-col gap-2 select-none overflow-hidden`}
       role="region"
       aria-label={`Marstek ${variant} Віджет`}
     >
       {/* Slim Header (on 3x3: Mode Icon + unsigned watts on left, temp + reload on right) */}
-      <div className="flex items-center justify-between gap-2 text-[10.5px] px-0.5">
+      <div className="flex items-center justify-between gap-2 text-[11px] px-0.5">
         {cols === 3 ? (
           <span
             className="inline-flex items-center gap-1 font-semibold tabular-nums truncate"
@@ -894,7 +892,7 @@ export function MarstekAdaptiveWidget({
             {hasSoc ? formatAbsPowerUk(netPower) : '-- Вт'}
           </span>
         ) : (
-          <span className="font-semibold text-[#A8B0B8] truncate">
+          <span className="font-semibold text-text-secondary truncate">
             Marstek{isUpdating ? ' · Оновлення...' : isError ? ' · Кеш' : ` · ${lastUpdateTime}`}
           </span>
         )}
@@ -908,7 +906,7 @@ export function MarstekAdaptiveWidget({
           </span>
           {cols >= 4 && (
             <>
-              <span className="text-[#616973]">·</span>
+              <span className="text-text-tertiary">·</span>
               <span
                 className="inline-flex items-center gap-1 whitespace-nowrap font-semibold tabular-nums"
                 style={{ color: visuals.color }}
@@ -924,7 +922,7 @@ export function MarstekAdaptiveWidget({
 
       {/* 2-Column Hero Modular Tiles */}
       <div className="flex items-stretch gap-2">
-        <div className="rounded-[15px] bg-[#1B2025] border border-[#2A2F35] p-2 flex items-center justify-center shrink-0">
+        <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget p-2 flex items-center justify-center shrink-0">
           <SocRing
             soc={clampedSoc}
             hasSoc={hasSoc}
@@ -932,33 +930,27 @@ export function MarstekAdaptiveWidget({
             sizePx={heroRingSize}
             strokeWidth={17}
             showPercent={heroRingSize >= 56}
-            textSizeClass={
-              cols === 3
-                ? 'text-[17.5px]'
-                : cols === 4
-                ? 'text-[18.5px]'
-                : 'text-[20px]'
-            }
+            textSizeClass={cols >= 5 ? 'text-[22px]' : 'text-[17px]'}
           />
         </div>
 
-        <div className="flex-1 min-w-0 rounded-[15px] bg-[#1B2025] border border-[#2A2F35] p-2.5 flex flex-col justify-center space-y-0.5">
-          <div className="text-[10px] text-[#A8B0B8] truncate">
+        <div className="flex-1 min-w-0 rounded-[14px] bg-bg-surface-elevated border border-border-widget p-2.5 flex flex-col justify-center space-y-0.5">
+          <div className="text-[10px] text-text-secondary truncate">
             {cols === 3 ? durations.leftLabel : `${durations.cardTitle} (${durations.leftLabel})`}
           </div>
           <div
             className={`${
-              cols === 3 ? 'text-[15.5px]' : 'text-[18.5px]'
-            } font-bold leading-tight tabular-nums text-[#F2F4F5] truncate`}
+              cols === 3 ? 'text-base' : 'text-[17px]'
+            } font-bold leading-tight tabular-nums text-text-primary truncate`}
           >
             {durationHeadline}
           </div>
-          <div className="text-[10.5px] text-[#C9CFD5] tabular-nums truncate">
+          <div className="text-[11px] text-text-body tabular-nums truncate">
             {cols === 3 ? '' : `${durations.rightLabel}: `}
-            <strong className="text-[#F2F4F5]">{durations.secondaryValueText}</strong>
+            <strong className="text-text-primary">{durations.secondaryValueText}</strong>
           </div>
           {enoughForOutage && (
-            <div className="text-[10px] font-medium text-[#3DDC84] pt-0.5 truncate">
+            <div className="text-[10px] font-medium text-accent-primary pt-0.5 truncate">
               ● Вистачить на відключення
             </div>
           )}
@@ -966,21 +958,21 @@ export function MarstekAdaptiveWidget({
       </div>
 
       {/* Outage Schedule Modular Tile with 12h-viewport Scrollable 00-24 (+Завтра) */}
-      <div className="rounded-[15px] bg-[#1B2025] border border-[#2A2F35] p-2.5 space-y-2">
+      <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget p-2.5 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[10.5px] font-semibold text-[#FFC24D] truncate">
+          <div className="text-[11px] font-semibold text-accent-outage truncate">
             {activeHeadline}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {hasTomorrowSchedule && (
-              <div className="inline-flex rounded-md bg-[#101316] p-0.5 border border-[#2A2F35]">
+              <div className="inline-flex rounded-md bg-bg-surface p-0.5 border border-border-widget">
                 <button
                   type="button"
                   onClick={() => handleDayJump('today')}
                   className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
                     !isTomorrowView
-                      ? 'bg-[#2A2F35] text-[#F2F4F5]'
-                      : 'text-[#8FA3B8] hover:text-[#F2F4F5]'
+                      ? 'bg-border-widget text-text-primary'
+                      : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
                   Сьогодні
@@ -990,15 +982,15 @@ export function MarstekAdaptiveWidget({
                   onClick={() => handleDayJump('tomorrow')}
                   className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
                     isTomorrowView
-                      ? 'bg-[#FFC24D] text-[#101316] font-bold'
-                      : 'text-[#8FA3B8] hover:text-[#F2F4F5]'
+                      ? 'bg-accent-discharge text-text-on-accent font-bold'
+                      : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
                   Завтра
                 </button>
               </div>
             )}
-            <span className="text-[10px] text-[#A8B0B8] tabular-nums whitespace-nowrap">
+            <span className="text-[10px] text-text-secondary tabular-nums whitespace-nowrap">
               {outageGroupLabel
                 ? cols === 3
                   ? outageGroupLabel
@@ -1023,10 +1015,10 @@ export function MarstekAdaptiveWidget({
             {visibleChips.map((chip) => (
               <span
                 key={chip.id}
-                className={`rounded-md px-1.5 py-0.5 text-[9.5px] font-mono-tabular ${
+                className={`rounded-md px-1.5 py-0.5 text-[10px] font-mono-tabular ${
                   chip.isHighlight
-                    ? 'bg-[#FFC24D] text-[#101316] font-bold'
-                    : 'bg-[#101316] text-[#C9CFD5] border border-[#2A2F35]'
+                    ? 'bg-accent-outage text-text-on-accent font-bold'
+                    : 'bg-bg-surface text-text-body border border-border-widget'
                 }`}
               >
                 {chip.label}

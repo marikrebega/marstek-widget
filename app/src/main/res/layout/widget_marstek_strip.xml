@@ -29,7 +29,7 @@
             android:gravity="center"
             android:includeFontPadding="false"
             android:text="--"
-            android:textColor="#F2F4F5"
+            android:textColor="@color/text_primary"
             android:textSize="13sp"
             android:textStyle="bold" />
     </FrameLayout>
@@ -63,9 +63,10 @@
                 android:layout_marginStart="4dp"
                 android:ellipsize="end"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
-                android:text="Очікування"
-                android:textColor="#8FA3B8"
+                android:text="Пауза"
+                android:textColor="@color/text_muted"
                 android:textSize="10sp"
                 android:textStyle="bold" />
 
@@ -76,9 +77,10 @@
                 android:layout_marginStart="4dp"
                 android:ellipsize="end"
                 android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="· --°C"
-                android:textColor="#C9CFD5"
+                android:textColor="@color/text_body"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -89,10 +91,11 @@
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:text="0 Вт·год"
-            android:textColor="#F2F4F5"
-            android:textSize="11.5sp"
+            android:textColor="@color/text_primary"
+            android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -115,9 +118,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:text="Без в."
-            android:textColor="#FFC24D"
+            android:textColor="@color/accent_outage"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -126,23 +130,24 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:text=""
-            android:textColor="#A8B0B8"
+            android:textColor="@color/text_secondary"
             android:textSize="9sp" />
     </LinearLayout>
 
     <!-- Refresh Button -->
     <FrameLayout
         android:id="@+id/stripRefreshBtn"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/refresh_btn_bg">
 
         <ImageView
-            android:layout_width="11dp"
-            android:layout_height="11dp"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
             android:layout_gravity="center"
             android:contentDescription="@string/app_name"
             android:src="@drawable/ic_refresh" />

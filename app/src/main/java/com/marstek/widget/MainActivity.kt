@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView = WebView(this).apply {
-            setBackgroundColor(0xFF0B0D10.toInt())
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.bg_canvas))
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false

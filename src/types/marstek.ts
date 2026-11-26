@@ -148,7 +148,7 @@ export function getModeVisuals(mode: BatteryMode): {
     case 'discharging':
       return { label: 'Розряджається', color: '#5AB0FF' };
     case 'idle':
-      return { label: 'Очікування', color: '#8FA3B8' };
+      return { label: 'Пауза', color: '#8FA3B8' };
   }
 }
 
@@ -157,12 +157,11 @@ export function formatPowerUk(netBatteryPower: number): string {
   if (absW <= 25) {
     return '0 Вт';
   }
-  const sign = netBatteryPower > 0 ? '+' : '−';
   if (absW >= 1000) {
     const kw = (absW / 1000).toFixed(1).replace('.', ',');
-    return `${sign}${kw} кВт`;
+    return `${kw} кВт`;
   }
-  return `${sign}${absW} Вт`;
+  return `${absW} Вт`;
 }
 
 export function formatDurationUk(totalMinutes: number): string {
@@ -178,7 +177,7 @@ export function formatCompactDurationUk(totalMinutes: number): string {
   const hours = Math.floor(clamped / 60);
   const mins = clamped % 60;
   if (hours === 0) return `${mins}хв`;
-  return `${hours}г ${String(mins).padStart(2, '0')}хв`;
+  return `${hours}г${String(mins).padStart(2, '0')}хв`;
 }
 
 export function computeEnergyDurations(
