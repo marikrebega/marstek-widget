@@ -279,6 +279,7 @@ export interface OutageSummary {
   microTimeText: string;
   targetOutageMinutes: number | null;
   isActiveNow: boolean;
+  isHeadlineTomorrow: boolean;
   nowPercent: number;
   blocks: Array<{ id: string; leftPct: number; widthPct: number }>;
   rollingBlocks: Array<{ id: string; leftPct: number; widthPct: number }>;
@@ -440,6 +441,7 @@ export function evaluateOutageSchedule(
       microTimeText: `о ${currentSlot.end}`,
       targetOutageMinutes: minsLeft,
       isActiveNow: true,
+      isHeadlineTomorrow: false,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
       rollingBlocks,
@@ -461,6 +463,7 @@ export function evaluateOutageSchedule(
       microTimeText: `о ${nextSlot.start}`,
       targetOutageMinutes: nextSlot.endMin - nextSlot.startMin,
       isActiveNow: false,
+      isHeadlineTomorrow: false,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
       rollingBlocks,
@@ -475,6 +478,8 @@ export function evaluateOutageSchedule(
     const minsUntil = 1440 - clampedNow + firstTomorrow.startMin;
     const dur = formatDurationUk(minsUntil);
     const shortDur = formatCompactDurationUk(minsUntil);
+    const todayTouchesMidnight = sorted.some((s) => s.endMin >= 1440);
+    const isContiguousWithToday = todayTouchesMidnight && firstTomorrow.startMin === 0;
     return {
       rangeText: `${firstTomorrow.start}–${firstTomorrow.end}`,
       countdownText: `Завтра о ${firstTomorrow.start} (через ${dur})`,
@@ -483,6 +488,7 @@ export function evaluateOutageSchedule(
       microTimeText: firstTomorrow.start,
       targetOutageMinutes: firstTomorrow.endMin - firstTomorrow.startMin,
       isActiveNow: false,
+      isHeadlineTomorrow: !isContiguousWithToday,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
       rollingBlocks,
@@ -501,6 +507,7 @@ export function evaluateOutageSchedule(
       microTimeText: 'Є світло',
       targetOutageMinutes: null,
       isActiveNow: false,
+      isHeadlineTomorrow: false,
       nowPercent: (clampedNow / 1440) * 100,
       blocks,
       rollingBlocks,
@@ -518,6 +525,7 @@ export function evaluateOutageSchedule(
     microTimeText: 'Є світло',
     targetOutageMinutes: null,
     isActiveNow: false,
+    isHeadlineTomorrow: false,
     nowPercent: (clampedNow / 1440) * 100,
     blocks,
     rollingBlocks,

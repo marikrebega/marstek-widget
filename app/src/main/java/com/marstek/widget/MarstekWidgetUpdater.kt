@@ -302,6 +302,10 @@ object MarstekWidgetUpdater {
         val tempColor = tempVisuals.resolveColor(context)
         val nowMinutes = MarstekStore.getKyivMinutesNow()
         val outage = MarstekStore.evaluateOutageSchedule(todaySlots, nowMinutes, tomorrowSlots)
+        val outageHeadlineColor = ContextCompat.getColor(
+            context,
+            if (outage.isHeadlineTomorrow) R.color.accent_discharge else R.color.accent_outage
+        )
         val absWattsText = if (hasSoc) MarstekStore.formatAbsPowerUk(netPower) else "-- Вт"
 
         val hasTomorrow = tomorrowSlots.isNotEmpty()
@@ -355,6 +359,7 @@ object MarstekWidgetUpdater {
             views.setTextColor(R.id.mini2TempText, tempColor)
 
             views.setTextViewText(R.id.mini2OutageRange, outage.rangeText)
+            views.setTextColor(R.id.mini2OutageRange, outageHeadlineColor)
             views.setTextViewText(R.id.mini2OutageCountdown, outage.compactCountdownText)
 
             views.setOnClickPendingIntent(R.id.mini2RefreshBtn, refreshPi)
@@ -379,6 +384,7 @@ object MarstekWidgetUpdater {
             views.setTextColor(R.id.mini2TempText, tempColor)
 
             views.setTextViewText(R.id.mini2OutageRange, outage.rangeText)
+            views.setTextColor(R.id.mini2OutageRange, outageHeadlineColor)
             views.setTextViewText(R.id.mini2OutageCountdown, outage.compactCountdownText)
 
             val cyclePi = actionPendingIntent(context, providerClass, ACTION_WINDOW_CYCLE, widgetId)
@@ -390,7 +396,7 @@ object MarstekWidgetUpdater {
                 windowStartHour = windowStartHour,
                 stepHours = spec.stepHours,
                 widthPx = 440,
-                heightPx = 80
+                heightPx = 76
             )
             views.setImageViewBitmap(R.id.mini23OutageBar, barBitmap)
 
@@ -429,6 +435,7 @@ object MarstekWidgetUpdater {
                 R.id.stripOutageRange,
                 if (spec.cols == 3) outage.microTimeText else outage.rangeText
             )
+            views.setTextColor(R.id.stripOutageRange, outageHeadlineColor)
             if (spec.cols >= 4) {
                 views.setViewVisibility(R.id.stripOutageAction, View.VISIBLE)
                 views.setTextViewText(R.id.stripOutageAction, outage.shortActionText)
@@ -445,9 +452,7 @@ object MarstekWidgetUpdater {
 
         val todayBlocks = outage.blocks
         val tomorrowBlocks = MarstekStore.toDayBlocks(tomorrowSlots)
-        val activeHeadline = if (isTomorrowView) {
-            tomorrowSlots.firstOrNull()?.let { "Завтра · перше ${it.start}–${it.end}" } ?: "Завтра без відключень"
-        } else if (spec.cols <= 4) {
+        val activeHeadline = if (spec.cols <= 4) {
             outage.compactCountdownText
         } else {
             outage.countdownText
@@ -482,6 +487,7 @@ object MarstekWidgetUpdater {
             views.setTextViewText(R.id.medSecondaryMeta, "${durations.leftLabel} · ${durations.secondaryValueText}")
 
             views.setTextViewText(R.id.medOutageHeadline, activeHeadline)
+            views.setTextColor(R.id.medOutageHeadline, outageHeadlineColor)
             if (hasTomorrow) {
                 views.setViewVisibility(R.id.medDayToggleBtn, View.VISIBLE)
                 views.setViewVisibility(R.id.medOutageRangeText, View.GONE)
@@ -489,7 +495,7 @@ object MarstekWidgetUpdater {
                 views.setInt(
                     R.id.medDayToggleBtn,
                     "setBackgroundResource",
-                    if (isTomorrowView) R.drawable.pill_day_active else R.drawable.pill_day_inactive
+                    if (isTomorrowView) R.drawable.pill_day_tomorrow_active else R.drawable.pill_day_inactive
                 )
                 views.setTextColor(
                     R.id.medDayToggleBtn,
@@ -515,7 +521,7 @@ object MarstekWidgetUpdater {
                 windowStartHour = windowStartHour,
                 stepHours = spec.stepHours,
                 widthPx = 680,
-                heightPx = 84
+                heightPx = 76
             )
             views.setImageViewBitmap(R.id.medOutageBarImage, barBitmap)
 
@@ -614,6 +620,7 @@ object MarstekWidgetUpdater {
         views.setViewVisibility(R.id.fullEnoughOutage, if (enoughOutage) View.VISIBLE else View.GONE)
 
         views.setTextViewText(R.id.fullOutageHeadline, activeHeadline)
+        views.setTextColor(R.id.fullOutageHeadline, outageHeadlineColor)
         views.setTextViewText(
             R.id.fullOutageGroup,
             if (spec.cols == 3) config.group else "Черга ${config.group}"
@@ -624,16 +631,16 @@ object MarstekWidgetUpdater {
             views.setInt(
                 R.id.fullBtnToday,
                 "setBackgroundResource",
-                if (!isTomorrowView) R.drawable.refresh_btn_bg else 0
+                if (!isTomorrowView) R.drawable.pill_day_active else 0
             )
             views.setTextColor(
                 R.id.fullBtnToday,
-                if (!isTomorrowView) textPrimary else textMuted
+                if (!isTomorrowView) textOnAccent else textMuted
             )
             views.setInt(
                 R.id.fullBtnTomorrow,
                 "setBackgroundResource",
-                if (isTomorrowView) R.drawable.pill_day_active else 0
+                if (isTomorrowView) R.drawable.pill_day_tomorrow_active else 0
             )
             views.setTextColor(
                 R.id.fullBtnTomorrow,
@@ -652,7 +659,7 @@ object MarstekWidgetUpdater {
         }
 
         val barWidthPx = if (spec.cols <= 3) 480 else 720
-        val barHeightPx = if (spec.cols <= 3) 86 else 92
+        val barHeightPx = 76
         val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
             context = context,
             todayBlocks = todayBlocks,

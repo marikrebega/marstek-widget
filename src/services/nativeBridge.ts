@@ -16,6 +16,8 @@ interface MarstekNativeInterface {
   loadConfig?: () => string;
   requestNotificationPermission?: () => boolean;
   sendTestOutageNotification?: () => boolean;
+  isIgnoringBatteryOptimizations?: () => boolean;
+  openBatterySettings?: () => void;
   getLastWidgetError?: () => string;
 }
 
@@ -28,6 +30,7 @@ declare global {
   interface Window {
     MarstekNative?: MarstekNativeInterface;
     __marstekNativeCallback?: (requestId: string, ok: boolean, payload: string) => void;
+    __marstekOnResume?: () => void;
   }
 }
 
@@ -81,6 +84,29 @@ export function sendNativeTestNotification(): boolean {
     return window.MarstekNative.sendTestOutageNotification();
   }
   return false;
+}
+
+export function isNativeBatteryUnrestricted(): boolean {
+  if (typeof window !== 'undefined' && window.MarstekNative?.isIgnoringBatteryOptimizations) {
+    return window.MarstekNative.isIgnoringBatteryOptimizations();
+  }
+  return true;
+}
+
+export function openNativeBatterySettings(): void {
+  if (typeof window !== 'undefined' && window.MarstekNative?.openBatterySettings) {
+    window.MarstekNative.openBatterySettings();
+  }
+}
+
+export function subscribeNativeResume(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.__marstekOnResume = callback;
+  return () => {
+    if (window.__marstekOnResume === callback) {
+      delete window.__marstekOnResume;
+    }
+  };
 }
 
 export interface WidgetDiagnosticError {

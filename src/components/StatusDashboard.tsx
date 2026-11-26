@@ -83,6 +83,7 @@ export function StatusDashboard({
 
   const outage = evaluateOutageSchedule(outageSlots, nowMinutes, tomorrowOutageSlots);
   const tomorrowBlocks = toDayBlocks(tomorrowOutageSlots);
+  const todayTouchesMidnight = outageSlots.some((s) => s.end === '24:00');
 
   const enoughForOutage =
     durations.dischargeMinutesLeft !== null &&
@@ -263,46 +264,47 @@ export function StatusDashboard({
 
       {/* Outage Schedule & Timeline Card */}
       <section className="rounded-2xl bg-bg-card border border-border-default p-4 space-y-3.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-xs text-text-muted tabular-nums">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-2 min-h-[28px]">
+            <div className="text-xs text-text-muted tabular-nums truncate">
               Графік відключень · Черга {outageGroupLabel}
             </div>
-            <div className="mt-0.5 text-sm font-semibold text-accent-outage tabular-nums">
-              {isTomorrowView
-                ? tomorrowOutageSlots[0]
-                  ? `Завтра · перше ${tomorrowOutageSlots[0].start}–${tomorrowOutageSlots[0].end}`
-                  : 'Завтра без відключень'
-                : outage.countdownText}
-            </div>
+
+            {hasTomorrow && (
+              <div className="inline-flex rounded-lg bg-bg-inset p-0.5 border border-border-control shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleDayJump('today')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                    !isTomorrowView
+                      ? 'bg-accent-outage text-text-on-accent font-semibold'
+                      : 'text-text-muted hover:text-text-primary'
+                  }`}
+                >
+                  Сьогодні
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDayJump('tomorrow')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                    isTomorrowView
+                      ? 'bg-accent-discharge text-text-on-accent font-semibold'
+                      : 'text-text-muted hover:text-text-primary'
+                  }`}
+                >
+                  Завтра
+                </button>
+              </div>
+            )}
           </div>
 
-          {hasTomorrow && (
-            <div className="inline-flex rounded-lg bg-bg-inset p-0.5 border border-border-control shrink-0">
-              <button
-                type="button"
-                onClick={() => handleDayJump('today')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  !isTomorrowView
-                    ? 'bg-bg-button-secondary text-text-primary'
-                    : 'text-text-muted hover:text-text-primary'
-                }`}
-              >
-                Сьогодні
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDayJump('tomorrow')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  isTomorrowView
-                    ? 'bg-accent-outage text-text-on-accent font-semibold'
-                    : 'text-text-muted hover:text-text-primary'
-                }`}
-              >
-                Завтра
-              </button>
-            </div>
-          )}
+          <div
+            className={`text-sm font-semibold tabular-nums ${
+              outage.isHeadlineTomorrow ? 'text-accent-discharge' : 'text-accent-outage'
+            }`}
+          >
+            {outage.countdownText}
+          </div>
         </div>
 
         <ScrollableOutageBar
@@ -342,12 +344,18 @@ export function StatusDashboard({
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-text-muted shrink-0">Завтра:</span>
             {hasTomorrow ? (
-              <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono-tabular text-accent-discharge">
-                {tomorrowOutageSlots.map((slot) => (
-                  <span key={slot.id}>
-                    {slot.start}–{slot.end}
-                  </span>
-                ))}
+              <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono-tabular">
+                {tomorrowOutageSlots.map((slot) => {
+                  const isContiguous = todayTouchesMidnight && slot.start === '00:00';
+                  return (
+                    <span
+                      key={slot.id}
+                      className={isContiguous ? 'text-accent-outage' : 'text-accent-discharge'}
+                    >
+                      {slot.start}–{slot.end}
+                    </span>
+                  );
+                })}
               </div>
             ) : (
               <span className="text-text-tertiary">графік ще не опубліковано</span>

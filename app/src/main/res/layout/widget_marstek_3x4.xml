@@ -92,13 +92,13 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="6dp"
-        android:layout_weight="0.65"
+        android:layout_weight="0.45"
         android:background="@drawable/widget_card_bg"
-        android:padding="6dp">
+        android:padding="5dp">
 
         <FrameLayout
-            android:layout_width="68dp"
-            android:layout_height="68dp"
+            android:layout_width="58dp"
+            android:layout_height="58dp"
             android:layout_gravity="center">
 
             <ImageView
@@ -117,7 +117,7 @@
                 android:includeFontPadding="false"
                 android:text="--%"
                 android:textColor="@color/text_primary"
-                android:textSize="17sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </FrameLayout>
     </FrameLayout>
@@ -127,11 +127,11 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="6dp"
-        android:layout_weight="0.7"
+        android:layout_weight="0.55"
         android:background="@drawable/widget_card_bg"
         android:gravity="center_vertical"
         android:orientation="vertical"
-        android:padding="9dp">
+        android:padding="8dp">
 
         <TextView
             android:id="@+id/fullCardTitle"
@@ -199,16 +199,14 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- Bottom Outage Tile (2h tick step) -->
+    <!-- Bottom Outage Tile (2h tick step, wrap_content so chips never clip) -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:layout_weight="0.9"
         android:background="@drawable/widget_card_bg"
-        android:gravity="center_vertical"
         android:orientation="vertical"
-        android:padding="9dp">
+        android:padding="8dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -244,14 +242,14 @@
                     android:id="@+id/fullBtnToday"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/refresh_btn_bg"
+                    android:background="@drawable/pill_day_active"
                     android:includeFontPadding="false"
                     android:paddingStart="5dp"
                     android:paddingTop="2dp"
                     android:paddingEnd="5dp"
                     android:paddingBottom="2dp"
                     android:text="Сьог."
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/text_on_accent"
                     android:textSize="9sp"
                     android:textStyle="bold" />
 
@@ -287,14 +285,14 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="5dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/fullPrevWindowBtn"
                 android:layout_width="24dp"
-                android:layout_height="28dp"
+                android:layout_height="26dp"
                 android:background="@drawable/pill_day_inactive"
                 android:gravity="center"
                 android:includeFontPadding="false"
@@ -306,7 +304,7 @@
             <ImageView
                 android:id="@+id/fullOutageBarImage"
                 android:layout_width="0dp"
-                android:layout_height="28dp"
+                android:layout_height="26dp"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
                 android:layout_weight="1"
@@ -316,7 +314,7 @@
             <TextView
                 android:id="@+id/fullNextWindowBtn"
                 android:layout_width="24dp"
-                android:layout_height="28dp"
+                android:layout_height="26dp"
                 android:background="@drawable/pill_day_inactive"
                 android:gravity="center"
                 android:includeFontPadding="false"
@@ -331,7 +329,7 @@
             android:id="@+id/fullChipsRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="5dp"
             android:orientation="horizontal"
             android:visibility="gone">
 

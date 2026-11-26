@@ -2,9 +2,13 @@ package com.marstek.widget
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -84,6 +88,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(webView)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript("window.__marstekOnResume && window.__marstekOnResume();", null)
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         executor.shutdownNow()
@@ -151,6 +162,26 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun sendTestOutageNotification(): Boolean {
             return OutageNotifier.sendTestNotification(this@MainActivity)
+        }
+
+        @JavascriptInterface
+        fun isIgnoringBatteryOptimizations(): Boolean {
+            val pm = getSystemService(POWER_SERVICE) as? PowerManager ?: return true
+            return pm.isIgnoringBatteryOptimizations(packageName)
+        }
+
+        @JavascriptInterface
+        fun openBatterySettings() {
+            try {
+                val intent = Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", packageName, null)
+                ).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+            }
         }
 
         @JavascriptInterface

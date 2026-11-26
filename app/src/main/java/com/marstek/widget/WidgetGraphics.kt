@@ -136,6 +136,10 @@ object WidgetGraphics {
             }
         }
 
+        val todayTouchesMidnight = todayBlocks.any { it.leftRatio + it.widthRatio >= 0.999f }
+        val tomorrowStartsAtMidnight = tomorrowBlocks.any { it.leftRatio <= 0.001f }
+        val hasMidnightBridge = hasTomorrow && todayTouchesMidnight && tomorrowStartsAtMidnight
+
         if (hasTomorrow) {
             val tomorrowBlockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.FILL
@@ -147,7 +151,9 @@ object WidgetGraphics {
                 val left = hourToX(startH).coerceIn(0f, widthPx.toFloat())
                 val right = hourToX(endH).coerceIn(left, widthPx.toFloat())
                 if (right > left) {
-                    canvas.drawRect(left, barTop, right, barBottom, tomorrowBlockPaint)
+                    val isContiguousWithToday = todayTouchesMidnight && block.leftRatio <= 0.001f
+                    val paint = if (isContiguousWithToday) todayBlockPaint else tomorrowBlockPaint
+                    canvas.drawRect(left, barTop, right, barBottom, paint)
                 }
             }
         }
@@ -167,8 +173,8 @@ object WidgetGraphics {
             val splitX = hourToX(24f)
             val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
-                color = dayDividerColor
-                strokeWidth = 5f
+                color = if (hasMidnightBridge) dividerLineColor else dayDividerColor
+                strokeWidth = if (hasMidnightBridge) 2f else 5f
             }
             canvas.drawLine(splitX, barTop, splitX, barBottom, divPaint)
         }

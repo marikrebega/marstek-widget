@@ -101,6 +101,7 @@ data class OutageSummaryUi(
     val shortActionText: String,
     val microTimeText: String,
     val isActiveNow: Boolean,
+    val isHeadlineTomorrow: Boolean,
     val nowRatio: Float,
     val blocks: List<OutageBlockRatio>,
     val todaySlotChips: List<OutageChipUi>,
@@ -714,6 +715,7 @@ object MarstekStore {
                 shortActionText = "о ${current.end} ($compactDur)",
                 microTimeText = current.end,
                 isActiveNow = true,
+                isHeadlineTomorrow = false,
                 nowRatio = nowRatio,
                 blocks = blocks,
                 todaySlotChips = chips,
@@ -732,6 +734,7 @@ object MarstekStore {
                 shortActionText = "о ${next.start} ($compactDur)",
                 microTimeText = next.start,
                 isActiveNow = false,
+                isHeadlineTomorrow = false,
                 nowRatio = nowRatio,
                 blocks = blocks,
                 todaySlotChips = chips,
@@ -744,6 +747,8 @@ object MarstekStore {
             val untilTomorrow = (1440 - clampedNow + firstTomorrow.startMin).toDouble()
             val dur = formatDurationUk(untilTomorrow)
             val compactDur = formatCompactDurationUk(untilTomorrow)
+            val todayTouchesMidnight = sorted.any { it.endMin >= 1440 }
+            val isContiguousWithToday = todayTouchesMidnight && firstTomorrow.startMin == 0
             return OutageSummaryUi(
                 rangeText = "${firstTomorrow.start} – ${firstTomorrow.end}",
                 countdownText = "Завтра о ${firstTomorrow.start} (через $dur)",
@@ -751,6 +756,7 @@ object MarstekStore {
                 shortActionText = "завтра ${firstTomorrow.start}",
                 microTimeText = firstTomorrow.start,
                 isActiveNow = false,
+                isHeadlineTomorrow = !isContiguousWithToday,
                 nowRatio = nowRatio,
                 blocks = blocks,
                 todaySlotChips = chips,
@@ -766,6 +772,7 @@ object MarstekStore {
                 shortActionText = "до кінця доби",
                 microTimeText = "Світло",
                 isActiveNow = false,
+                isHeadlineTomorrow = false,
                 nowRatio = nowRatio,
                 blocks = blocks,
                 todaySlotChips = chips,
@@ -780,6 +787,7 @@ object MarstekStore {
             shortActionText = "світло є",
             microTimeText = "Без в.",
             isActiveNow = false,
+            isHeadlineTomorrow = false,
             nowRatio = nowRatio,
             blocks = blocks,
             todaySlotChips = chips,

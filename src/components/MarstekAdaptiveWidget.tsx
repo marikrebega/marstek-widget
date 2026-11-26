@@ -315,6 +315,9 @@ export function ScrollableOutageBar({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   const hasTomorrow = tomorrowBlocks.length > 0;
+  const todayTouchesMidnight = todayBlocks.some((b) => b.leftPct + b.widthPct >= 99.9);
+  const tomorrowStartsAtMidnight = tomorrowBlocks.some((b) => b.leftPct <= 0.1);
+  const hasMidnightBridge = hasTomorrow && todayTouchesMidnight && tomorrowStartsAtMidnight;
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(false);
   const [isNarrowBar, setIsNarrowBar] = useState(false);
@@ -457,15 +460,25 @@ export function ScrollableOutageBar({
               <DayScaleTicks stepHours={effectiveTickStep} />
             </div>
 
-            {/* Distinct Day Divider + Tomorrow 00-24 (in accent-discharge #5AB0FF) */}
+            {/* Distinct Day Divider + Tomorrow 00-24 (contiguous midnight block stays amber, others blue #5AB0FF) */}
             {hasTomorrow && (
               <>
                 <div
                   className="w-[26px] shrink-0 flex flex-col items-center select-none"
                   aria-hidden="true"
                 >
-                  <div className="h-[13px] w-full flex items-center justify-center bg-bg-outage-bar-empty">
-                    <div className="w-[2px] h-full bg-accent-discharge/85" />
+                  <div
+                    className={`h-[13px] w-full flex items-center justify-center ${
+                      hasMidnightBridge ? 'bg-accent-outage' : 'bg-bg-outage-bar-empty'
+                    }`}
+                  >
+                    <div
+                      className={
+                        hasMidnightBridge
+                          ? 'w-px h-full bg-bg-surface/45'
+                          : 'w-[2px] h-full bg-accent-discharge/85'
+                      }
+                    />
                   </div>
                   <div className="mt-1 text-[9px] font-bold text-accent-discharge leading-[14px] tracking-tight">
                     ЗВТ
@@ -474,16 +487,21 @@ export function ScrollableOutageBar({
 
                 <div className="w-[190%] shrink-0 px-2">
                   <div className="relative h-[13px] rounded-r-[6px] bg-bg-outage-bar-track overflow-hidden">
-                    {tomorrowBlocks.map((block) => (
-                      <div
-                        key={block.id}
-                        className="absolute top-0 bottom-0 bg-accent-discharge"
-                        style={{
-                          left: `${block.leftPct.toFixed(2)}%`,
-                          width: `${block.widthPct.toFixed(2)}%`,
-                        }}
-                      />
-                    ))}
+                    {tomorrowBlocks.map((block) => {
+                      const isContiguousWithToday = todayTouchesMidnight && block.leftPct <= 0.1;
+                      return (
+                        <div
+                          key={block.id}
+                          className={`absolute top-0 bottom-0 ${
+                            isContiguousWithToday ? 'bg-accent-outage' : 'bg-accent-discharge'
+                          }`}
+                          style={{
+                            left: `${block.leftPct.toFixed(2)}%`,
+                            width: `${block.widthPct.toFixed(2)}%`,
+                          }}
+                        />
+                      );
+                    })}
                     {Array.from({ length: 23 }).map((_, idx) => (
                       <div
                         key={idx}
@@ -563,11 +581,7 @@ export function MarstekAdaptiveWidget({
   const todayOutage = evaluateOutageSchedule(outageSlots, nowMinutes, tomorrowOutageSlots);
   const tomorrowBlocks = toDayBlocks(tomorrowOutageSlots);
 
-  const activeHeadline = isTomorrowView
-    ? tomorrowOutageSlots[0]
-      ? `Завтра · перше ${tomorrowOutageSlots[0].start}–${tomorrowOutageSlots[0].end}`
-      : 'Завтра без відключень'
-    : cols <= 4
+  const activeHeadline = cols <= 4
     ? todayOutage.compactCountdownText
     : todayOutage.countdownText;
 
@@ -683,7 +697,11 @@ export function MarstekAdaptiveWidget({
 
         {/* Outage Tile */}
         <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget px-2.5 py-1.5 space-y-0.5">
-          <div className="text-[11px] font-bold text-accent-outage font-mono-tabular truncate">
+          <div
+            className={`text-[11px] font-bold font-mono-tabular truncate ${
+              todayOutage.isHeadlineTomorrow ? 'text-accent-discharge' : 'text-accent-outage'
+            }`}
+          >
             {todayOutage.rangeText}
           </div>
           <div className="text-[10px] text-text-body tabular-nums truncate">
@@ -751,7 +769,11 @@ export function MarstekAdaptiveWidget({
         </div>
 
         <div className="shrink-0 rounded-[10px] bg-bg-surface-elevated border border-border-widget px-2 py-1 text-right font-mono-tabular">
-          <div className="text-[10px] font-bold text-accent-outage whitespace-nowrap">
+          <div
+            className={`text-[10px] font-bold whitespace-nowrap ${
+              todayOutage.isHeadlineTomorrow ? 'text-accent-discharge' : 'text-accent-outage'
+            }`}
+          >
             {cols === 3 ? todayOutage.microTimeText : todayOutage.rangeText}
           </div>
           {cols >= 4 && (
@@ -829,7 +851,11 @@ export function MarstekAdaptiveWidget({
 
         <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget px-2.5 py-2 space-y-1.5">
           <div className="flex items-center justify-between gap-1.5 text-[11px]">
-            <span className="font-semibold text-accent-outage tabular-nums truncate">
+            <span
+              className={`font-semibold tabular-nums truncate ${
+                todayOutage.isHeadlineTomorrow ? 'text-accent-discharge' : 'text-accent-outage'
+              }`}
+            >
               {activeHeadline}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -960,7 +986,11 @@ export function MarstekAdaptiveWidget({
       {/* Outage Schedule Modular Tile with 12h-viewport Scrollable 00-24 (+Завтра) */}
       <div className="rounded-[14px] bg-bg-surface-elevated border border-border-widget p-2.5 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] font-semibold text-accent-outage truncate">
+          <div
+            className={`text-[11px] font-semibold truncate ${
+              todayOutage.isHeadlineTomorrow ? 'text-accent-discharge' : 'text-accent-outage'
+            }`}
+          >
             {activeHeadline}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -971,7 +1001,7 @@ export function MarstekAdaptiveWidget({
                   onClick={() => handleDayJump('today')}
                   className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
                     !isTomorrowView
-                      ? 'bg-border-widget text-text-primary'
+                      ? 'bg-accent-outage text-text-on-accent font-bold'
                       : 'text-text-muted hover:text-text-primary'
                   }`}
                 >

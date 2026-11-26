@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import {
   formatPowerUk,
   getBatteryMode,
@@ -10,7 +10,12 @@ import {
   type OutageProviderInfo,
   type OutageSlot,
 } from '../types/marstek';
-import { hasNativeAndroidBridge } from '../services/nativeBridge';
+import {
+  hasNativeAndroidBridge,
+  isNativeBatteryUnrestricted,
+  openNativeBatterySettings,
+  subscribeNativeResume,
+} from '../services/nativeBridge';
 
 export type TestState =
   | { kind: 'idle' }
@@ -68,6 +73,18 @@ export function ConnectionSettings({
   onSaveSettings,
 }: ConnectionSettingsProps) {
   const isNativeAndroid = hasNativeAndroidBridge();
+  const [batteryUnrestricted, setBatteryUnrestricted] = useState<boolean>(() =>
+    isNativeAndroid ? isNativeBatteryUnrestricted() : true
+  );
+  const todayTouchesMidnight = outageSlots.some((s) => s.end === '24:00');
+
+  useEffect(() => {
+    if (!isNativeAndroid) return;
+    setBatteryUnrestricted(isNativeBatteryUnrestricted());
+    return subscribeNativeResume(() => {
+      setBatteryUnrestricted(isNativeBatteryUnrestricted());
+    });
+  }, [isNativeAndroid]);
   const formattedUpdatedAt = outageUpdatedAt
     ? new Date(outageUpdatedAt).toLocaleString('uk-UA', {
         timeZone: 'Europe/Kyiv',
@@ -349,12 +366,18 @@ export function ConnectionSettings({
         <div className="pt-2.5 border-t border-border-default space-y-1">
           <div className="text-xs font-medium text-text-secondary">Завтра</div>
           {tomorrowOutageSlots.length > 0 ? (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono-tabular text-xs text-accent-discharge">
-              {tomorrowOutageSlots.map((slot) => (
-                <span key={slot.id}>
-                  {slot.start}–{slot.end}
-                </span>
-              ))}
+            <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono-tabular text-xs">
+              {tomorrowOutageSlots.map((slot) => {
+                const isContiguous = todayTouchesMidnight && slot.start === '00:00';
+                return (
+                  <span
+                    key={slot.id}
+                    className={isContiguous ? 'text-accent-outage' : 'text-accent-discharge'}
+                  >
+                    {slot.start}–{slot.end}
+                  </span>
+                );
+              })}
             </div>
           ) : (
             <p className="text-xs text-text-tertiary">
@@ -364,42 +387,63 @@ export function ConnectionSettings({
         </div>
 
         {/* Outage Change Notifications Toggle */}
-        <div className="pt-3 border-t border-border-default flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-text-primary">
-              Сповіщення про зміну графіка
+        <div className="pt-3 border-t border-border-default space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-text-primary">
+                Сповіщення про зміну графіка
+              </div>
+              <div className="text-[11px] text-text-muted">
+                Push при змінах на сьогодні або появі графіка на завтра
+              </div>
             </div>
-            <div className="text-[11px] text-text-muted">
-              Push при змінах на сьогодні або появі графіка на завтра
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {isNativeAndroid && onTestNotification && notifyOutages && (
+            <div className="flex items-center gap-2 shrink-0">
+              {isNativeAndroid && onTestNotification && notifyOutages && (
+                <button
+                  type="button"
+                  onClick={onTestNotification}
+                  className="min-h-[36px] rounded-lg bg-bg-inset border border-border-control hover:border-accent-outage px-2.5 py-1 text-xs text-accent-outage transition-colors cursor-pointer"
+                >
+                  Тест
+                </button>
+              )}
               <button
                 type="button"
-                onClick={onTestNotification}
-                className="min-h-[36px] rounded-lg bg-bg-inset border border-border-control hover:border-accent-outage px-2.5 py-1 text-xs text-accent-outage transition-colors cursor-pointer"
-              >
-                Тест
-              </button>
-            )}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={notifyOutages}
-              aria-label="Сповіщення про зміну графіка"
-              onClick={() => onNotifyOutagesChange(!notifyOutages)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors cursor-pointer ${
-                notifyOutages ? 'bg-accent-primary' : 'bg-border-control'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-bg-surface transition-transform ${
-                  notifyOutages ? 'translate-x-6' : 'translate-x-1'
+                role="switch"
+                aria-checked={notifyOutages}
+                aria-label="Сповіщення про зміну графіка"
+                onClick={() => onNotifyOutagesChange(!notifyOutages)}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors cursor-pointer ${
+                  notifyOutages ? 'bg-accent-primary' : 'bg-border-control'
                 }`}
-              />
-            </button>
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-bg-surface transition-transform ${
+                    notifyOutages ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
+
+          {isNativeAndroid && notifyOutages && (
+            <div className="rounded-xl bg-bg-inset border border-border-control px-3 py-2 flex items-center justify-between gap-2.5">
+              <div className="text-[11px] text-text-secondary leading-snug">
+                {batteryUnrestricted
+                  ? 'Фонова перевірка кожні 15 хв · віджет — кожні 30 хв'
+                  : 'Для стабільних фонових сповіщень на Samsung / Android оберіть Акумулятор → Необмежено'}
+              </div>
+              {!batteryUnrestricted && (
+                <button
+                  type="button"
+                  onClick={openNativeBatterySettings}
+                  className="min-h-[32px] shrink-0 rounded-lg bg-bg-button-secondary hover:bg-bg-button-secondary-hover px-2.5 py-1 text-[11px] font-medium text-accent-outage transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  Налаштувати
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

@@ -9,7 +9,7 @@ import android.content.Context
 import java.util.concurrent.Executors
 
 /**
- * Lightweight 30-minute periodic JobService checking outage schedule changes
+ * Lightweight 15-minute periodic JobService checking outage schedule changes
  * only when outage notifications are enabled. Does not run any foreground service
  * or screen-unlock listener.
  */
@@ -26,10 +26,15 @@ class OutageMonitorJobService : JobService() {
 
         executor.execute {
             try {
+                val prevRaw = appContext.getSharedPreferences("marstek_widget_prefs", Context.MODE_PRIVATE)
+                val prevToday = prevRaw.getString("outage_today_json", "")
+                val prevTomorrow = prevRaw.getString("outage_tomorrow_json", "")
+
                 val outcome = MarstekClient.fetchOutages(config.providerId, config.group)
                 MarstekStore.saveOutagesJson(appContext, outcome.todayJson, outcome.tomorrowJson)
                 val changed = OutageNotifier.processOutageUpdate(appContext, config, outcome)
-                if (changed) {
+                val jsonRotated = prevToday != outcome.todayJson || prevTomorrow != outcome.tomorrowJson
+                if (changed || jsonRotated) {
                     MarstekWidgetUpdater.updateAllFromCache(appContext, isUpdating = false)
                 }
             } catch (_: Exception) {
@@ -51,7 +56,7 @@ class OutageMonitorJobService : JobService() {
 
     companion object {
         private const val JOB_ID = 7021
-        private const val PERIOD_MS = 30L * 60L * 1000L
+        private const val PERIOD_MS = 15L * 60L * 1000L
 
         fun syncSchedule(context: Context, enabled: Boolean) {
             val scheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as? JobScheduler ?: return
@@ -61,7 +66,7 @@ class OutageMonitorJobService : JobService() {
             }
 
             val existing = scheduler.getPendingJob(JOB_ID)
-            if (existing != null) return
+            if (existing != null && existing.intervalMillis == PERIOD_MS) return
 
             val component = ComponentName(context.applicationContext, OutageMonitorJobService::class.java)
             val jobInfo = JobInfo.Builder(JOB_ID, component)

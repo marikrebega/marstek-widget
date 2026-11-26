@@ -8,11 +8,19 @@ import android.os.Bundle
 
 class MarstekFullWidgetProvider : AppWidgetProvider() {
 
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        val config = MarstekStore.loadConfig(context)
+        OutageMonitorJobService.syncSchedule(context, config.notifyOutages)
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        val config = MarstekStore.loadConfig(context)
+        OutageMonitorJobService.syncSchedule(context, config.notifyOutages)
         val pendingResult = goAsync()
         MarstekWidgetUpdater.refreshAsync(context, pendingResult, isUserInitiated = false)
     }
