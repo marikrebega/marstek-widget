@@ -340,6 +340,7 @@ object MarstekWidgetUpdater {
                 if (outage.isActiveNow) R.drawable.dot_amber else R.drawable.dot_green
             )
             views.setTextViewText(R.id.miniTimeText, outage.microTimeText)
+            views.setTextColor(R.id.miniTimeText, outageHeadlineColor)
             views.setOnClickPendingIntent(R.id.widgetRoot, refreshPi)
             return views
         }
@@ -672,9 +673,15 @@ object MarstekWidgetUpdater {
         )
         views.setImageViewBitmap(R.id.fullOutageBarImage, barBitmap)
 
+        val todayTouchesMidnight = todayBlocks.any { it.leftRatio + it.widthRatio >= 0.999f }
         val chipsToRender: List<OutageChipUi> = if (isTomorrowView) {
             tomorrowSlots.mapIndexed { idx, slot ->
-                OutageChipUi("${slot.start}–${slot.end}", idx == 0)
+                val isContiguous = todayTouchesMidnight && MarstekStore.timeToMinutes(slot.start) == 0
+                OutageChipUi(
+                    label = "${slot.start}–${slot.end}",
+                    isHighlight = idx == 0,
+                    isTomorrowAccent = !isContiguous
+                )
             }
         } else {
             outage.todaySlotChips
@@ -696,7 +703,11 @@ object MarstekWidgetUpdater {
                     views.setInt(
                         allChipIds[i],
                         "setBackgroundResource",
-                        if (chip.isHighlight) R.drawable.pill_day_active else R.drawable.pill_day_inactive
+                        when {
+                            chip.isHighlight && chip.isTomorrowAccent -> R.drawable.pill_day_tomorrow_active
+                            chip.isHighlight -> R.drawable.pill_day_active
+                            else -> R.drawable.pill_day_inactive
+                        }
                     )
                     views.setTextColor(
                         allChipIds[i],
@@ -724,7 +735,11 @@ object MarstekWidgetUpdater {
                         views.setInt(
                             chipIds[i],
                             "setBackgroundResource",
-                            if (chip.isHighlight) R.drawable.pill_day_active else R.drawable.pill_day_inactive
+                            when {
+                                chip.isHighlight && chip.isTomorrowAccent -> R.drawable.pill_day_tomorrow_active
+                                chip.isHighlight -> R.drawable.pill_day_active
+                                else -> R.drawable.pill_day_inactive
+                            }
                         )
                         views.setTextColor(
                             chipIds[i],

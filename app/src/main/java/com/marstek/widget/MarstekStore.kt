@@ -91,7 +91,8 @@ data class OutageBlockRatio(
 
 data class OutageChipUi(
     val label: String,
-    val isHighlight: Boolean
+    val isHighlight: Boolean,
+    val isTomorrowAccent: Boolean = false
 )
 
 data class OutageSummaryUi(

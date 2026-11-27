@@ -585,11 +585,21 @@ export function MarstekAdaptiveWidget({
     ? todayOutage.compactCountdownText
     : todayOutage.countdownText;
 
-  const activeChips = isTomorrowView
+  const todayTouchesMidnight = todayOutage.blocks.some(
+    (b) => b.leftPct + b.widthPct >= 99.9
+  );
+
+  const activeChips: Array<{
+    id: string;
+    label: string;
+    isHighlight: boolean;
+    isTomorrowAccent?: boolean;
+  }> = isTomorrowView
     ? tomorrowOutageSlots.map((s, idx) => ({
         id: s.id,
         label: `${s.start}–${s.end}`,
         isHighlight: idx === 0,
+        isTomorrowAccent: !(todayTouchesMidnight && s.start === '00:00'),
       }))
     : todayOutage.todaySlotChips;
 
@@ -643,7 +653,11 @@ export function MarstekAdaptiveWidget({
               todayOutage.isActiveNow ? 'bg-accent-outage' : 'bg-accent-primary'
             }`}
           />
-          <span className="text-accent-outage font-semibold truncate">
+          <span
+            className={`font-semibold truncate ${
+              todayOutage.isHeadlineTomorrow ? 'text-accent-discharge' : 'text-accent-outage'
+            }`}
+          >
             {todayOutage.microTimeText}
           </span>
         </div>
@@ -1047,7 +1061,9 @@ export function MarstekAdaptiveWidget({
                 key={chip.id}
                 className={`rounded-md px-1.5 py-0.5 text-[10px] font-mono-tabular ${
                   chip.isHighlight
-                    ? 'bg-accent-outage text-text-on-accent font-bold'
+                    ? chip.isTomorrowAccent
+                      ? 'bg-accent-discharge text-text-on-accent font-bold'
+                      : 'bg-accent-outage text-text-on-accent font-bold'
                     : 'bg-bg-surface text-text-body border border-border-widget'
                 }`}
               >
