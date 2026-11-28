@@ -415,16 +415,16 @@ export function App() {
     <div className="min-h-screen bg-bg-canvas text-text-primary flex flex-col overflow-x-hidden">
       {/* Compact 3-Zone Top Bar */}
       <header className="sticky top-0 z-30 border-b border-border-subtle bg-bg-surface/95 backdrop-blur-md">
-        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-8">
+        <div className="max-w-6xl w-full mx-auto px-4 sm:px-5 h-14 flex items-center justify-between gap-4 sm:gap-5">
           <span className="text-base font-bold tracking-tight text-text-primary whitespace-nowrap shrink-0">
             Marstek Venus
           </span>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm">
+          <nav className="hidden md:flex items-center gap-5 text-sm">
             <button
               type="button"
               onClick={() => setActiveTab('settings')}
-              className={`min-h-[40px] transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 ${
+              className={`min-h-[40px] transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-1 border-b-2 ${
                 rightDesktopTab === 'settings'
                   ? 'text-text-primary border-accent-primary font-medium'
                   : 'text-text-muted border-transparent hover:text-text-primary'
@@ -435,7 +435,7 @@ export function App() {
             <button
               type="button"
               onClick={() => setActiveTab('logs')}
-              className={`min-h-[40px] transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 tabular-nums ${
+              className={`min-h-[40px] transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-1 border-b-2 tabular-nums ${
                 rightDesktopTab === 'logs'
                   ? 'text-text-primary border-accent-primary font-medium'
                   : 'text-text-muted border-transparent hover:text-text-primary'
@@ -459,8 +459,8 @@ export function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 pb-20 md:py-7 md:pb-8">
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,460px)_minmax(0,1fr)] gap-7 items-start">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-5 py-5 pb-20 md:py-5">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,460px)_minmax(0,1fr)] gap-5 items-start">
           {/* Status View (on mobile visible only when activeTab === 'status') */}
           <section
             id="status-overview"
@@ -549,7 +549,7 @@ export function App() {
         <button
           type="button"
           onClick={() => setActiveTab('status')}
-          className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+          className={`flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors cursor-pointer ${
             activeTab === 'status' ? 'text-accent-primary' : 'text-text-muted'
           }`}
         >
@@ -572,7 +572,7 @@ export function App() {
         <button
           type="button"
           onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+          className={`flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors cursor-pointer ${
             activeTab === 'settings' ? 'text-accent-primary' : 'text-text-muted'
           }`}
         >
@@ -596,7 +596,7 @@ export function App() {
         <button
           type="button"
           onClick={() => setActiveTab('logs')}
-          className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer tabular-nums ${
+          className={`flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors cursor-pointer tabular-nums ${
             activeTab === 'logs'
               ? 'text-accent-primary'
               : errorCount > 0

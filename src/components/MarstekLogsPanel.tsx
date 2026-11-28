@@ -92,7 +92,7 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg bg-bg-segment p-0.5 border border-border-control">
+          <div className="inline-flex rounded-lg bg-bg-segment p-1 border border-border-control">
             {(
               [
                 { id: 'all', label: 'Усі' },
@@ -104,7 +104,7 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
                 key={tab.id}
                 type="button"
                 onClick={() => setFilter(tab.id)}
-                className={`min-h-[36px] px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                className={`min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                   filter === tab.id
                     ? 'bg-border-control text-text-primary'
                     : 'text-text-muted hover:text-text-primary'
@@ -146,7 +146,7 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
             : 'Немає записів для вибраного фільтра.'}
         </div>
       ) : (
-        <div className="space-y-3 max-h-[520px] overflow-y-auto pr-0.5">
+        <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
           {filteredLogs.map((entry) => (
             <div
               key={entry.id}
@@ -171,7 +171,7 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
                   <button
                     type="button"
                     onClick={() => void handleCopy(entry)}
-                    className={`min-h-[32px] rounded-lg px-2.5 py-1 text-[11px] font-sans font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`min-h-[32px] rounded-lg px-3 py-1 text-[11px] font-sans font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       copiedId === entry.id
                         ? 'text-accent-primary bg-status-success-bg'
                         : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover-subtle'
@@ -181,12 +181,12 @@ export function MarstekLogsPanel({ logs, onClearLogs }: MarstekLogsPanelProps) {
                   </button>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
                   <span className="text-text-body">{entry.timestamp}</span>
                   <span className="text-text-separator">·</span>
                   <span className="text-text-muted">{entry.durationMs} мс</span>
                   <span className="text-text-separator">·</span>
-                  <span className="text-text-tertiary break-all">{entry.target}</span>
+                  <span className="text-text-muted break-all">{entry.target}</span>
                 </div>
               </div>
 

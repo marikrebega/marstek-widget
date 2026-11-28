@@ -1,7 +1,3 @@
-import type {
-  OutageStepSetting,
-  WidgetFilterGroup,
-} from '../components/MarstekAdaptiveWidget';
 import {
   DEFAULT_OUTAGE_CONFIG,
   type MarstekStatus,
@@ -21,18 +17,8 @@ const STORAGE_KEYS = {
   OUTAGE_CONFIG: 'marstek_pref_outage_config',
   CACHED_OUTAGES_TODAY: 'marstek_pref_cached_outages_today',
   CACHED_OUTAGES_TOMORROW: 'marstek_pref_cached_outages_tomorrow',
-  WIDGET_FILTER: 'marstek_pref_widget_filter',
-  OUTAGE_STEP: 'marstek_pref_outage_step_v3',
   NOTIFY_OUTAGES: 'marstek_pref_notify_outages',
 } as const;
-
-const VALID_FILTERS = new Set<WidgetFilterGroup>([
-  'all',
-  '5col',
-  '4col',
-  '3col',
-  'mini',
-]);
 
 export interface StoredPreferences {
   deviceIp: string;
@@ -46,8 +32,6 @@ export interface StoredPreferences {
   outageConfig: OutageConfig;
   cachedOutageToday: OutageSlot[];
   cachedOutageTomorrow: OutageSlot[];
-  widgetFilter: WidgetFilterGroup;
-  outageStep: OutageStepSetting;
   notifyOutages: boolean;
 }
 
@@ -64,8 +48,6 @@ export function loadPreferences(): StoredPreferences {
     const rawOutageConfig = localStorage.getItem(STORAGE_KEYS.OUTAGE_CONFIG);
     const rawToday = localStorage.getItem(STORAGE_KEYS.CACHED_OUTAGES_TODAY);
     const rawTomorrow = localStorage.getItem(STORAGE_KEYS.CACHED_OUTAGES_TOMORROW);
-    const rawFilter = localStorage.getItem(STORAGE_KEYS.WIDGET_FILTER);
-    const rawStep = localStorage.getItem(STORAGE_KEYS.OUTAGE_STEP);
     const rawNotify = localStorage.getItem(STORAGE_KEYS.NOTIFY_OUTAGES);
 
     const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : 30000;
@@ -121,16 +103,6 @@ export function loadPreferences(): StoredPreferences {
       }
     }
 
-    const widgetFilter: WidgetFilterGroup =
-      rawFilter && VALID_FILTERS.has(rawFilter as WidgetFilterGroup)
-        ? (rawFilter as WidgetFilterGroup)
-        : 'all';
-
-    const outageStep: OutageStepSetting =
-      rawStep === '1' || rawStep === '2' || rawStep === '3' || rawStep === '4'
-        ? (Number.parseInt(rawStep, 10) as 1 | 2 | 3 | 4)
-        : 'auto';
-
     return {
       deviceIp: rawIp && rawIp.trim() ? rawIp.trim() : '192.168.0.190',
       devicePort: Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 30000,
@@ -143,8 +115,6 @@ export function loadPreferences(): StoredPreferences {
       outageConfig,
       cachedOutageToday,
       cachedOutageTomorrow,
-      widgetFilter,
-      outageStep,
       notifyOutages: rawNotify !== 'false',
     };
   } catch {
@@ -160,8 +130,6 @@ export function loadPreferences(): StoredPreferences {
       outageConfig: DEFAULT_OUTAGE_CONFIG,
       cachedOutageToday: [],
       cachedOutageTomorrow: [],
-      widgetFilter: 'all',
-      outageStep: 'auto',
       notifyOutages: true,
     };
   }
@@ -196,18 +164,6 @@ export function saveCachedOutages(today: OutageSlot[], tomorrow: OutageSlot[]): 
 export function saveNotifyOutages(enabled: boolean): void {
   try {
     localStorage.setItem(STORAGE_KEYS.NOTIFY_OUTAGES, enabled ? 'true' : 'false');
-  } catch {
-    // Ignore storage quota errors
-  }
-}
-
-export function savePreviewUiState(
-  filter: WidgetFilterGroup,
-  step: OutageStepSetting
-): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.WIDGET_FILTER, filter);
-    localStorage.setItem(STORAGE_KEYS.OUTAGE_STEP, String(step));
   } catch {
     // Ignore storage quota errors
   }

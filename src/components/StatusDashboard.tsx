@@ -10,7 +10,7 @@ import {
   type MarstekStatus,
   type OutageSlot,
 } from '../types/marstek';
-import { ModeIcon, ScrollableOutageBar } from './MarstekAdaptiveWidget';
+import { ModeIcon, ScrollableOutageBar } from './OutageTimeline';
 
 interface StatusDashboardProps {
   soc: number;
@@ -195,7 +195,7 @@ export function StatusDashboard({
             </div>
 
             {enoughForOutage && (
-              <div className="text-xs font-medium text-accent-primary pt-0.5">
+              <div className="text-xs font-medium text-accent-primary pt-1">
                 Заряду вистачить на найближче відключення
               </div>
             )}
@@ -203,24 +203,24 @@ export function StatusDashboard({
         </div>
 
         {/* Live Power Flows */}
-        <div className="pt-3.5 border-t border-border-default grid grid-cols-3 gap-3">
+        <div className="pt-4 border-t border-border-default grid grid-cols-3 gap-3">
           <div>
             <div className="text-[11px] text-text-muted">Мережа (Grid)</div>
-            <div className="mt-0.5 text-sm font-semibold font-mono-tabular text-text-primary">
+            <div className="mt-1 text-sm font-semibold font-mono-tabular text-text-primary">
               {hasSoc ? formatWatts(onGridPower) : '-- Вт'}
             </div>
           </div>
 
           <div>
             <div className="text-[11px] text-text-muted">Сонце (PV)</div>
-            <div className="mt-0.5 text-sm font-semibold font-mono-tabular text-text-primary">
+            <div className="mt-1 text-sm font-semibold font-mono-tabular text-text-primary">
               {hasSoc ? formatWatts(pvPower) : '-- Вт'}
             </div>
           </div>
 
           <div>
             <div className="text-[11px] text-text-muted">Вихід (EPS)</div>
-            <div className="mt-0.5 text-sm font-semibold font-mono-tabular text-text-primary">
+            <div className="mt-1 text-sm font-semibold font-mono-tabular text-text-primary">
               {hasSoc ? formatWatts(offGridPower) : '-- Вт'}
             </div>
           </div>
@@ -228,24 +228,24 @@ export function StatusDashboard({
 
         {/* Cumulative Energy Counters */}
         {fullStatus && (
-          <div className="pt-3.5 border-t border-border-default grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="pt-4 border-t border-border-default grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <div className="text-[11px] text-text-muted">Всього з мережі</div>
-              <div className="mt-0.5 text-xs font-semibold font-mono-tabular text-text-body">
+              <div className="mt-1 text-xs font-semibold font-mono-tabular text-text-body">
                 {formatEnergyWh(fullStatus.totalGridInputEnergy)}
               </div>
             </div>
 
             <div>
               <div className="text-[11px] text-text-muted">Всього в мережу</div>
-              <div className="mt-0.5 text-xs font-semibold font-mono-tabular text-text-body">
+              <div className="mt-1 text-xs font-semibold font-mono-tabular text-text-body">
                 {formatEnergyWh(fullStatus.totalGridOutputEnergy)}
               </div>
             </div>
 
             <div>
               <div className="text-[11px] text-text-muted">Всього PV</div>
-              <div className="mt-0.5 text-xs font-semibold font-mono-tabular text-text-body">
+              <div className="mt-1 text-xs font-semibold font-mono-tabular text-text-body">
                 {formatEnergyWh(fullStatus.totalPvEnergy)}
               </div>
             </div>
@@ -253,7 +253,7 @@ export function StatusDashboard({
             {typeof fullStatus.totalLoadEnergy === 'number' && (
               <div>
                 <div className="text-[11px] text-text-muted">Навантаження</div>
-                <div className="mt-0.5 text-xs font-semibold font-mono-tabular text-text-body">
+                <div className="mt-1 text-xs font-semibold font-mono-tabular text-text-body">
                   {formatEnergyWh(fullStatus.totalLoadEnergy)}
                 </div>
               </div>
@@ -263,7 +263,7 @@ export function StatusDashboard({
       </section>
 
       {/* Outage Schedule & Timeline Card */}
-      <section className="rounded-2xl bg-bg-card border border-border-default p-4 space-y-3.5">
+      <section className="rounded-2xl bg-bg-card border border-border-default p-4 space-y-4">
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2 min-h-[28px]">
             <div className="text-xs text-text-muted tabular-nums truncate">
@@ -271,11 +271,11 @@ export function StatusDashboard({
             </div>
 
             {hasTomorrow && (
-              <div className="inline-flex rounded-lg bg-bg-inset p-0.5 border border-border-control shrink-0">
+              <div className="inline-flex rounded-lg bg-bg-inset p-1 border border-border-control shrink-0">
                 <button
                   type="button"
                   onClick={() => handleDayJump('today')}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                     !isTomorrowView
                       ? 'bg-accent-outage text-text-on-accent font-semibold'
                       : 'text-text-muted hover:text-text-primary'
@@ -286,7 +286,7 @@ export function StatusDashboard({
                 <button
                   type="button"
                   onClick={() => handleDayJump('tomorrow')}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                     isTomorrowView
                       ? 'bg-accent-discharge text-text-on-accent font-semibold'
                       : 'text-text-muted hover:text-text-primary'
@@ -337,7 +337,7 @@ export function StatusDashboard({
                 ))}
               </div>
             ) : (
-              <span className="text-text-tertiary">без відключень</span>
+              <span className="text-text-muted">без відключень</span>
             )}
           </div>
 
@@ -358,7 +358,7 @@ export function StatusDashboard({
                 })}
               </div>
             ) : (
-              <span className="text-text-tertiary">графік ще не опубліковано</span>
+              <span className="text-text-muted">графік ще не опубліковано</span>
             )}
           </div>
         </div>

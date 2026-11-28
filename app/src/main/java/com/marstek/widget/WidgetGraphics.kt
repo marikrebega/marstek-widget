@@ -67,9 +67,13 @@ object WidgetGraphics {
         windowStartHour: Int,
         stepHours: Int,
         widthPx: Int = 720,
-        heightPx: Int = 76
+        heightPx: Int = 76,
+        heightDp: Float = 28f
     ): Bitmap {
-        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+        val safeWidth = widthPx.coerceAtLeast(1)
+        val safeHeight = heightPx.coerceAtLeast(1)
+        val scale = (safeHeight.toFloat() / heightDp.coerceAtLeast(1f)).coerceAtLeast(1f)
+        val bitmap = Bitmap.createBitmap(safeWidth, safeHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
         val todayBarBg = ContextCompat.getColor(context, R.color.bg_gauge_track)
@@ -81,8 +85,8 @@ object WidgetGraphics {
         val nowMarkerColor = ContextCompat.getColor(context, R.color.text_primary)
         val tickTextColor = ContextCompat.getColor(context, R.color.text_muted)
 
-        val barHeight = heightPx * 0.42f
-        val barTop = 2f
+        val barTop = 1f * scale
+        val barHeight = (heightDp - 16f).coerceIn(8f, 15f) * scale
         val barBottom = barTop + barHeight
         val cornerRadius = barHeight * 0.45f
 
@@ -91,7 +95,7 @@ object WidgetGraphics {
 
         val barClip = Path().apply {
             addRoundRect(
-                RectF(0f, barTop, widthPx.toFloat(), barBottom),
+                RectF(0f, barTop, safeWidth.toFloat(), barBottom),
                 cornerRadius,
                 cornerRadius,
                 Path.Direction.CW
@@ -111,16 +115,16 @@ object WidgetGraphics {
         }
 
         if (!hasTomorrow || windowEndHour <= 24) {
-            canvas.drawRect(0f, barTop, widthPx.toFloat(), barBottom, bgTodayPaint)
+            canvas.drawRect(0f, barTop, safeWidth.toFloat(), barBottom, bgTodayPaint)
         } else if (windowStartHour >= 24) {
-            canvas.drawRect(0f, barTop, widthPx.toFloat(), barBottom, bgTomorrowPaint)
+            canvas.drawRect(0f, barTop, safeWidth.toFloat(), barBottom, bgTomorrowPaint)
         } else {
-            val splitX = ((24 - windowStartHour) / 12f) * widthPx
+            val splitX = ((24 - windowStartHour) / 12f) * safeWidth
             canvas.drawRect(0f, barTop, splitX, barBottom, bgTodayPaint)
-            canvas.drawRect(splitX, barTop, widthPx.toFloat(), barBottom, bgTomorrowPaint)
+            canvas.drawRect(splitX, barTop, safeWidth.toFloat(), barBottom, bgTomorrowPaint)
         }
 
-        fun hourToX(absHour: Float): Float = ((absHour - windowStartHour) / 12f) * widthPx
+        fun hourToX(absHour: Float): Float = ((absHour - windowStartHour) / 12f) * safeWidth
 
         val todayBlockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
@@ -129,8 +133,8 @@ object WidgetGraphics {
         for (block in todayBlocks) {
             val startH = block.leftRatio * 24f
             val endH = (block.leftRatio + block.widthRatio) * 24f
-            val left = hourToX(startH).coerceIn(0f, widthPx.toFloat())
-            val right = hourToX(endH).coerceIn(left, widthPx.toFloat())
+            val left = hourToX(startH).coerceIn(0f, safeWidth.toFloat())
+            val right = hourToX(endH).coerceIn(left, safeWidth.toFloat())
             if (right > left) {
                 canvas.drawRect(left, barTop, right, barBottom, todayBlockPaint)
             }
@@ -148,8 +152,8 @@ object WidgetGraphics {
             for (block in tomorrowBlocks) {
                 val startH = 24f + block.leftRatio * 24f
                 val endH = 24f + (block.leftRatio + block.widthRatio) * 24f
-                val left = hourToX(startH).coerceIn(0f, widthPx.toFloat())
-                val right = hourToX(endH).coerceIn(left, widthPx.toFloat())
+                val left = hourToX(startH).coerceIn(0f, safeWidth.toFloat())
+                val right = hourToX(endH).coerceIn(left, safeWidth.toFloat())
                 if (right > left) {
                     val isContiguousWithToday = todayTouchesMidnight && block.leftRatio <= 0.001f
                     val paint = if (isContiguousWithToday) todayBlockPaint else tomorrowBlockPaint
@@ -161,7 +165,7 @@ object WidgetGraphics {
         val hourLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             color = dividerLineColor
-            strokeWidth = 2f
+            strokeWidth = 1f * scale
         }
         for (h in (windowStartHour + 1) until windowEndHour) {
             if (h == 24) continue
@@ -174,30 +178,34 @@ object WidgetGraphics {
             val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 color = if (hasMidnightBridge) dividerLineColor else dayDividerColor
-                strokeWidth = if (hasMidnightBridge) 2f else 5f
+                strokeWidth = if (hasMidnightBridge) 1f * scale else 2f * scale
             }
             canvas.drawLine(splitX, barTop, splitX, barBottom, divPaint)
         }
 
         val nowHour = nowRatio.coerceIn(0f, 1f) * 24f
         if (nowHour >= windowStartHour && nowHour <= windowEndHour) {
-            val nowX = hourToX(nowHour).coerceIn(3f, widthPx - 3f)
+            val nowHalfW = 1.25f * scale
+            val nowX = hourToX(nowHour).coerceIn(nowHalfW, safeWidth - nowHalfW)
             val nowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.FILL
                 color = nowMarkerColor
             }
-            canvas.drawRect(nowX - 2.5f, barTop, nowX + 2.5f, barBottom, nowPaint)
+            canvas.drawRect(nowX - nowHalfW, barTop, nowX + nowHalfW, barBottom, nowPaint)
         }
 
         canvas.restore()
 
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = tickTextColor
-            textSize = heightPx * 0.30f
+            textSize = 9f * scale
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
             textAlign = Paint.Align.CENTER
         }
-        val labelY = heightPx - 6f
+        val digitBounds = android.graphics.Rect()
+        labelPaint.getTextBounds("00", 0, 2, digitBounds)
+        val fm = labelPaint.fontMetrics
+        val labelY = (barBottom + 4f * scale - digitBounds.top).coerceAtMost(safeHeight.toFloat() - fm.descent)
 
         val firstTick = ceil(windowStartHour.toDouble() / stepHours).toInt() * stepHours
         val lastTick = floor(windowEndHour.toDouble() / stepHours).toInt() * stepHours
@@ -210,7 +218,9 @@ object WidgetGraphics {
                     color = outageTomorrowColor
                     typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
                 }
-                canvas.drawText("ЗВТ", x.coerceIn(24f, widthPx - 24f), labelY, splitPaint)
+                val halfZvt = splitPaint.measureText("ЗВТ") / 2f
+                val safeZvtX = x.coerceIn(halfZvt + 0.5f * scale, safeWidth.toFloat() - halfZvt - 0.5f * scale)
+                canvas.drawText("ЗВТ", safeZvtX, labelY, splitPaint)
             } else {
                 val displayHour = if (tickHour == 24 && (!hasTomorrow || windowEndHour == 24)) {
                     24
@@ -223,15 +233,28 @@ object WidgetGraphics {
                 when {
                     tickHour == windowStartHour -> {
                         labelPaint.textAlign = Paint.Align.LEFT
-                        canvas.drawText(label, 0f, labelY, labelPaint)
+                        canvas.drawText(label, 0.5f * scale, labelY, labelPaint)
                     }
                     tickHour == windowEndHour -> {
                         labelPaint.textAlign = Paint.Align.RIGHT
-                        canvas.drawText(label, widthPx.toFloat(), labelY, labelPaint)
+                        canvas.drawText(label, safeWidth.toFloat() - 0.5f * scale, labelY, labelPaint)
                     }
                     else -> {
-                        labelPaint.textAlign = Paint.Align.CENTER
-                        canvas.drawText(label, x, labelY, labelPaint)
+                        val halfW = labelPaint.measureText(label) / 2f
+                        when {
+                            x + halfW > safeWidth.toFloat() - 0.5f * scale -> {
+                                labelPaint.textAlign = Paint.Align.RIGHT
+                                canvas.drawText(label, safeWidth.toFloat() - 0.5f * scale, labelY, labelPaint)
+                            }
+                            x - halfW < 0.5f * scale -> {
+                                labelPaint.textAlign = Paint.Align.LEFT
+                                canvas.drawText(label, 0.5f * scale, labelY, labelPaint)
+                            }
+                            else -> {
+                                labelPaint.textAlign = Paint.Align.CENTER
+                                canvas.drawText(label, x, labelY, labelPaint)
+                            }
+                        }
                     }
                 }
             }

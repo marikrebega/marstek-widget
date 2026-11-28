@@ -57,7 +57,7 @@
             android:layout_marginEnd="5dp"
             android:includeFontPadding="false"
             android:text="·"
-            android:textColor="@color/text_tertiary"
+            android:textColor="@color/text_separator"
             android:textSize="11sp" />
 
         <ImageView
@@ -325,8 +325,8 @@
                 android:id="@+id/fullOutageBarImage"
                 android:layout_width="0dp"
                 android:layout_height="34dp"
-                android:layout_marginStart="5dp"
-                android:layout_marginEnd="5dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
                 android:layout_weight="1"
                 android:contentDescription="@null"
                 android:scaleType="fitCenter" />

@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 object MarstekWidgetUpdater {
 
@@ -272,6 +273,22 @@ object MarstekWidgetUpdater {
         }
     }
 
+    private fun computeScaledBarSizePx(
+        context: Context,
+        options: Bundle?,
+        defaultWidthDp: Int,
+        chromeWidthDp: Int,
+        barHeightDp: Int
+    ): Triple<Int, Int, Float> {
+        val minW = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
+        val widgetWidthDp = if (minW > 0) minW else defaultWidthDp
+        val barWidthDp = (widgetWidthDp - chromeWidthDp).coerceAtLeast(72)
+        val density = context.resources.displayMetrics.density.coerceIn(1f, 4f)
+        val widthPx = (barWidthDp * density).roundToInt().coerceAtLeast(72)
+        val heightPx = (barHeightDp * density).roundToInt().coerceAtLeast(24)
+        return Triple(widthPx, heightPx, barHeightDp.toFloat())
+    }
+
     private fun buildAdaptiveRemoteViews(
         context: Context,
         providerClass: Class<*>,
@@ -389,6 +406,13 @@ object MarstekWidgetUpdater {
             views.setTextViewText(R.id.mini2OutageCountdown, outage.compactCountdownText)
 
             val cyclePi = actionPendingIntent(context, providerClass, ACTION_WINDOW_CYCLE, widgetId)
+            val (barWidthPx, barHeightPx, barHeightDp) = computeScaledBarSizePx(
+                context = context,
+                options = options,
+                defaultWidthDp = 140,
+                chromeWidthDp = 34,
+                barHeightDp = 24
+            )
             val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
                 context = context,
                 todayBlocks = outage.blocks,
@@ -396,8 +420,9 @@ object MarstekWidgetUpdater {
                 nowRatio = outage.nowRatio,
                 windowStartHour = windowStartHour,
                 stepHours = spec.stepHours,
-                widthPx = 440,
-                heightPx = 76
+                widthPx = barWidthPx,
+                heightPx = barHeightPx,
+                heightDp = barHeightDp
             )
             views.setImageViewBitmap(R.id.mini23OutageBar, barBitmap)
 
@@ -514,6 +539,18 @@ object MarstekWidgetUpdater {
                 }
             }
 
+            val medDefaultW = when {
+                spec.cols >= 5 -> 320
+                spec.cols == 4 -> 260
+                else -> 200
+            }
+            val (barWidthPx, barHeightPx, barHeightDp) = computeScaledBarSizePx(
+                context = context,
+                options = options,
+                defaultWidthDp = medDefaultW,
+                chromeWidthDp = 84,
+                barHeightDp = 24
+            )
             val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
                 context = context,
                 todayBlocks = todayBlocks,
@@ -521,8 +558,9 @@ object MarstekWidgetUpdater {
                 nowRatio = outage.nowRatio,
                 windowStartHour = windowStartHour,
                 stepHours = spec.stepHours,
-                widthPx = 680,
-                heightPx = 76
+                widthPx = barWidthPx,
+                heightPx = barHeightPx,
+                heightDp = barHeightDp
             )
             views.setImageViewBitmap(R.id.medOutageBarImage, barBitmap)
 
@@ -659,8 +697,23 @@ object MarstekWidgetUpdater {
             views.setViewVisibility(R.id.fullDayToggleGroup, View.GONE)
         }
 
-        val barWidthPx = if (spec.cols <= 3) 480 else 720
-        val barHeightPx = 76
+        val defaultWidgetW = when {
+            spec.cols >= 5 -> 320
+            spec.cols == 4 -> 260
+            else -> 200
+        }
+        val (chromeW, barHeightDp) = when {
+            spec.isTall -> 118 to 34
+            spec.isCompactTall -> 96 to 28
+            else -> 92 to 26
+        }
+        val (barWidthPx, barHeightPx, resolvedHeightDp) = computeScaledBarSizePx(
+            context = context,
+            options = options,
+            defaultWidthDp = defaultWidgetW,
+            chromeWidthDp = chromeW,
+            barHeightDp = barHeightDp
+        )
         val barBitmap = WidgetGraphics.renderScrollableWindowBarBitmap(
             context = context,
             todayBlocks = todayBlocks,
@@ -669,7 +722,8 @@ object MarstekWidgetUpdater {
             windowStartHour = windowStartHour,
             stepHours = spec.stepHours,
             widthPx = barWidthPx,
-            heightPx = barHeightPx
+            heightPx = barHeightPx,
+            heightDp = resolvedHeightDp
         )
         views.setImageViewBitmap(R.id.fullOutageBarImage, barBitmap)
 

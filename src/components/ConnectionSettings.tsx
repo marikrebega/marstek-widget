@@ -98,12 +98,12 @@ export function ConnectionSettings({
   return (
     <div className="space-y-4">
       {/* UDP Connection Card */}
-      <section className="rounded-2xl bg-bg-card border border-border-default p-4 space-y-3.5">
+      <section className="rounded-2xl bg-bg-card border border-border-default p-4 space-y-4">
         <div>
           <h2 className="text-base font-semibold text-text-primary">
             Пристрій Marstek
           </h2>
-          <p className="text-xs text-text-muted mt-0.5">
+          <p className="text-xs text-text-muted mt-1">
             Локальне UDP-з’єднання в домашній Wi-Fi мережі
           </p>
         </div>
@@ -124,7 +124,7 @@ export function ConnectionSettings({
               value={ip}
               onChange={(e) => onIpChange(e.target.value)}
               placeholder="192.168.0.190"
-              className={`w-full min-h-[44px] rounded-xl bg-bg-inset border px-3.5 py-2 text-sm text-text-primary placeholder-text-tertiary font-mono-tabular focus:outline-none focus:ring-2 focus:ring-accent-discharge transition-colors ${
+              className={`w-full min-h-[44px] rounded-xl bg-bg-inset border px-3 py-2 text-sm text-text-primary placeholder-text-tertiary font-mono-tabular focus:outline-none focus:ring-2 focus:ring-accent-discharge transition-colors ${
                 ipError ? 'border-status-error' : 'border-border-control'
               }`}
             />
@@ -150,12 +150,12 @@ export function ConnectionSettings({
               value={port}
               onChange={(e) => onPortChange(e.target.value)}
               placeholder="30000"
-              className="w-full min-h-[44px] rounded-xl bg-bg-inset border border-border-control px-3.5 py-2 text-sm text-text-primary placeholder-text-tertiary font-mono-tabular focus:outline-none focus:ring-2 focus:ring-accent-discharge transition-colors"
+              className="w-full min-h-[44px] rounded-xl bg-bg-inset border border-border-control px-3 py-2 text-sm text-text-primary placeholder-text-tertiary font-mono-tabular focus:outline-none focus:ring-2 focus:ring-accent-discharge transition-colors"
             />
           </div>
         </div>
 
-        <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
+        <div className="pt-1 flex flex-col sm:flex-row gap-3">
           <button
             type="button"
             onClick={onTestConnection}
@@ -198,7 +198,7 @@ export function ConnectionSettings({
                 З’єднання успішне
                 {testState.status.deviceName ? ` · ${testState.status.deviceName}` : ''}
               </div>
-              <dl className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono-tabular text-xs text-text-primary">
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono-tabular text-xs text-text-primary">
                 {testState.status.workMode && (
                   <>
                     <dt className="text-text-muted">Режим:</dt>
@@ -259,13 +259,13 @@ export function ConnectionSettings({
       )}
 
       {/* Outage Schedule Card */}
-      <section className="rounded-2xl bg-bg-card border border-border-default p-4 space-y-3.5">
+      <section className="rounded-2xl bg-bg-card border border-border-default p-4 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-text-primary">
               Графік відключень
             </h2>
-            <p className="text-xs text-text-muted mt-0.5 tabular-nums">
+            <p className="text-xs text-text-muted mt-1 tabular-nums">
               {outageLoading
                 ? 'Завантаження графіка...'
                 : outageError
@@ -286,7 +286,7 @@ export function ConnectionSettings({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-3">
           <div>
             <label
               htmlFor="outage-provider"
@@ -363,7 +363,7 @@ export function ConnectionSettings({
         </div>
 
         {/* Tomorrow Slots */}
-        <div className="pt-2.5 border-t border-border-default space-y-1">
+        <div className="pt-3 border-t border-border-default space-y-1">
           <div className="text-xs font-medium text-text-secondary">Завтра</div>
           {tomorrowOutageSlots.length > 0 ? (
             <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono-tabular text-xs">
@@ -380,14 +380,14 @@ export function ConnectionSettings({
               })}
             </div>
           ) : (
-            <p className="text-xs text-text-tertiary">
+            <p className="text-xs text-text-muted">
               Графік ще не опубліковано. Щойно з’явиться — на шкалі додасться розділювач «ЗВТ» і перемикач днів.
             </p>
           )}
         </div>
 
         {/* Outage Change Notifications Toggle */}
-        <div className="pt-3 border-t border-border-default space-y-2.5">
+        <div className="pt-3 border-t border-border-default space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs font-semibold text-text-primary">
@@ -402,7 +402,7 @@ export function ConnectionSettings({
                 <button
                   type="button"
                   onClick={onTestNotification}
-                  className="min-h-[36px] rounded-lg bg-bg-inset border border-border-control hover:border-accent-outage px-2.5 py-1 text-xs text-accent-outage transition-colors cursor-pointer"
+                  className="min-h-[36px] rounded-lg bg-bg-inset border border-border-control hover:border-accent-outage px-3 py-1 text-xs text-accent-outage transition-colors cursor-pointer"
                 >
                   Тест
                 </button>
@@ -427,7 +427,7 @@ export function ConnectionSettings({
           </div>
 
           {isNativeAndroid && notifyOutages && (
-            <div className="rounded-xl bg-bg-inset border border-border-control px-3 py-2 flex items-center justify-between gap-2.5">
+            <div className="rounded-xl bg-bg-inset border border-border-control px-3 py-2 flex items-center justify-between gap-3">
               <div className="text-[11px] text-text-secondary leading-snug">
                 {batteryUnrestricted
                   ? 'Фонова перевірка кожні 15 хв · віджет — кожні 30 хв'
@@ -437,7 +437,7 @@ export function ConnectionSettings({
                 <button
                   type="button"
                   onClick={openNativeBatterySettings}
-                  className="min-h-[32px] shrink-0 rounded-lg bg-bg-button-secondary hover:bg-bg-button-secondary-hover px-2.5 py-1 text-[11px] font-medium text-accent-outage transition-colors cursor-pointer whitespace-nowrap"
+                  className="min-h-[32px] shrink-0 rounded-lg bg-bg-button-secondary hover:bg-bg-button-secondary-hover px-3 py-1 text-[11px] font-medium text-accent-outage transition-colors cursor-pointer whitespace-nowrap"
                 >
                   Налаштувати
                 </button>
@@ -455,7 +455,7 @@ export function ConnectionSettings({
             ▼
           </span>
         </summary>
-        <ol className="mt-3 pt-2.5 border-t border-border-default space-y-1.5 text-xs leading-relaxed text-text-secondary list-decimal list-inside">
+        <ol className="mt-3 pt-3 border-t border-border-default space-y-1.5 text-xs leading-relaxed text-text-secondary list-decimal list-inside">
           <li>Затисніть порожнє місце на головному екрані телефону.</li>
           <li>Оберіть <strong className="text-text-primary">Віджети</strong> (Widgets).</li>
           <li>Знайдіть <strong className="text-text-primary">Marstek Venus Widget</strong> і оберіть Повний, Компактний або Міні.</li>
